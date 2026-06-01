@@ -6,7 +6,7 @@ import { DeviceFilterBar, type DeviceFilters } from '@/components/noc/DeviceFilt
 import { OfflineByClientPanel } from '@/components/noc/OfflineByClientPanel';
 import { StatusCard } from '@/components/noc/StatusCard';
 import { useNocData } from '@/hooks/use-noc-data';
-import { filterDevices, getCameraSummary } from '@/domain/noc-selectors';
+import { cleanGroupName, filterDevices, getCameraSummary, isActiveNocGroup } from '@/domain/noc-selectors';
 
 const initialFilters: DeviceFilters = {
   search: '',
@@ -17,8 +17,23 @@ const initialFilters: DeviceFilters = {
 export default function CamerasPage() {
   const data = useOutletContext<ReturnType<typeof useNocData>>();
   const [filters, setFilters] = useState<DeviceFilters>(initialFilters);
-  const summary = useMemo(() => getCameraSummary(data.allDevices), [data.allDevices]);
-  const filteredCameras = useMemo(() => filterDevices(summary.cameras, filters), [summary.cameras, filters]);
+  const [clientFilter, setClientFilter] = useState('all');
+  const activeDevices = useMemo(
+    () => data.groups.filter(isActiveNocGroup).flatMap(group => group.devices),
+    [data.groups]
+  );
+  const summary = useMemo(() => getCameraSummary(activeDevices), [activeDevices]);
+  const cameraClients = useMemo(
+    () => Array.from(new Set(summary.cameras.map(camera => camera.group))).sort(),
+    [summary.cameras]
+  );
+  const filteredCameras = useMemo(() => {
+    const byClient = clientFilter === 'all'
+      ? summary.cameras
+      : summary.cameras.filter(camera => camera.group === clientFilter);
+
+    return filterDevices(byClient, filters);
+  }, [clientFilter, filters, summary.cameras]);
 
   return (
     <div className="space-y-6 lg:space-y-8">
@@ -78,6 +93,23 @@ export default function CamerasPage() {
           totalDevices={summary.cameras.length}
           showTypeFilter={false}
         />
+
+        <div className="flex flex-col gap-2 sm:max-w-xs">
+          <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground" htmlFor="camera-client-filter">
+            Cliente
+          </label>
+          <select
+            id="camera-client-filter"
+            value={clientFilter}
+            onChange={event => setClientFilter(event.target.value)}
+            className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+          >
+            <option value="all">Todos os clientes</option>
+            {cameraClients.map(client => (
+              <option key={client} value={client}>{cleanGroupName(client)}</option>
+            ))}
+          </select>
+        </div>
 
         {filteredCameras.length > 0 ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 min-[1800px]:grid-cols-5">

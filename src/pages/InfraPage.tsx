@@ -80,14 +80,14 @@ export default function InfraPage() {
         ))}
       </section>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[0.8fr_1.6fr]">
         <div className="space-y-3">
           <h2 className="flex items-center gap-2 text-xl font-semibold text-foreground">
             <Server className="h-5 w-5 text-primary" />
             Servidores Zabbix ({coreServers.length})
           </h2>
           {coreServers.length > 0 ? (
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3">
               {coreServers.map((device, i) => <DeviceCard key={device.id} device={device} index={i} />)}
             </div>
           ) : (
@@ -101,7 +101,7 @@ export default function InfraPage() {
             Proxies ({proxies.length})
           </h2>
           {proxies.length > 0 ? (
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
               {proxies.map((device, i) => <DeviceCard key={device.id} device={device} index={i} />)}
             </div>
           ) : (
@@ -114,7 +114,7 @@ export default function InfraPage() {
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <h2 className="flex items-center gap-2 text-xl font-semibold text-foreground">
             <Network className="h-5 w-5 text-primary" />
-            Links por cliente
+            Links e Switches por cliente
           </h2>
           <span className="font-mono text-xs text-muted-foreground">
             {clientsWithLinkProblems.length} clientes com atencao
@@ -128,7 +128,7 @@ export default function InfraPage() {
                 <summary className="flex cursor-pointer list-none items-center gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-foreground">{cleanGroupName(group.groupName)}</p>
-                    <p className="text-xs text-muted-foreground">{group.devices.length} links/equipamentos de rede</p>
+                    <p className="text-xs text-muted-foreground">{group.devices.length} links/switches monitorados</p>
                   </div>
                   <StatusBadge status={group.offline > 0 ? 'critical' : group.warning > 0 ? 'warning' : 'healthy'} />
                 </summary>
@@ -141,7 +141,7 @@ export default function InfraPage() {
             ))}
           </div>
         ) : (
-          <EmptyPanel>Nenhum link, roteador ou switch identificado nos grupos atuais.</EmptyPanel>
+          <EmptyPanel>Nenhum link ou switch identificado nos grupos atuais.</EmptyPanel>
         )}
       </section>
     </div>
