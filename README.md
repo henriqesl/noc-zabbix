@@ -1,6 +1,6 @@
 # NOC Vision
 
-Dashboard web para acompanhamento operacional de ambientes monitorados via Zabbix.
+Web dashboard for operational monitoring of environments tracked through Zabbix.
 
 ## Stack
 
@@ -9,24 +9,40 @@ Dashboard web para acompanhamento operacional de ambientes monitorados via Zabbi
 - Vite
 - Tailwind CSS
 
-## Configuracao
+## Running Locally
 
-Crie um arquivo `.env` local usando o modelo:
+Install dependencies:
+
+```bash
+npm install
+```
+
+Create a local environment file:
 
 ```bash
 cp .env.example .env
 ```
 
-Preencha as variaveis localmente. Nao publique tokens, URLs internas ou credenciais.
+Fill `.env` with the variables used by the Zabbix API:
 
-## Rodando
+```env
+VITE_ZABBIX_URL=
+VITE_ZABBIX_TOKEN=
+```
+
+Start the development server:
 
 ```bash
-npm install
 npm run dev
 ```
 
-## Validacao
+Production build:
+
+```bash
+npm run build
+```
+
+## Validation
 
 ```bash
 npm run lint
@@ -34,6 +50,49 @@ npm run test
 npm run build
 ```
 
-## Seguranca
+## Project Conventions
 
-O arquivo `.env` deve permanecer fora do Git. Para deploy publico, evite expor tokens no frontend; use uma API/backend intermediario.
+### Active Groups
+
+The main dashboard only treats Zabbix groups as active when their names include one of these markers:
+
+- `[BASE]`
+- `[CLIENTE]`
+
+This allows groups to exist in Zabbix without appearing in the main dashboard before they are operationally active.
+
+### Proxies
+
+The dashboard separates:
+
+- offline proxies;
+- truly offline devices;
+- devices offline because their proxy is unavailable.
+
+Devices affected by an offline proxy do not increase the main critical-alert count. They are shown in a separate proxy-impact section.
+
+### Alerts
+
+Alerts are filtered and sorted in the frontend. Sorting supports ISO dates and numeric timestamps.
+
+Available filters:
+
+- client;
+- severity;
+- status;
+- period;
+- text search.
+
+### Core Health
+
+The core page separates servers, proxies, and network links by client. The current charts use a local simulated series in `generateMockCoreSeries()` and are structured to be replaced by real metrics later.
+
+### Cameras
+
+The cameras page works as an operational inventory. It separates truly offline cameras from cameras impacted by proxy outages.
+
+## Security
+
+The `.env` file must stay out of Git.
+
+Do not publish tokens, internal URLs, or credentials. For public deployments, avoid exposing tokens in the frontend; use an intermediate API/backend to call Zabbix.
