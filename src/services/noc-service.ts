@@ -105,6 +105,8 @@ export async function fetchNocData() {
 
       if (hostNameLower.includes('zabbix server') || hostNameLower.includes('amazon zabbix')) {
         deviceStatus = 'online';
+      } else if (isBehindOfflineProxy) {
+        deviceStatus = 'offline';
       } else if (hasCriticalProblem) {
         deviceStatus = 'offline';
       } else if (agentAvailable || host.available === '0') {

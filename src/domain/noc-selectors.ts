@@ -121,13 +121,12 @@ export function getNetworkDevicesByClient(devices: Device[]) {
     const name = device.name.toLowerCase();
 
     return (
-      device.type === 'router' ||
       device.type === 'switch' ||
       group.includes('link') ||
-      group.includes('rede') ||
       name.includes('link') ||
-      name.includes('router') ||
-      name.includes('mikrotik')
+      name.includes('switch') ||
+      name.includes('sw-') ||
+      name.startsWith('sw')
     );
   });
 

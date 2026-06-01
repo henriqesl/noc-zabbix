@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { AlertRow } from '@/components/noc/AlertRow';
@@ -9,6 +9,8 @@ import type { AlertSeverity } from '@/domain/noc';
 type SeverityFilter = AlertSeverity | 'todos';
 type StatusFilter = 'todos' | 'abertos' | 'reconhecidos';
 type PeriodFilter = 'all' | '1h' | '6h' | '24h' | '7d';
+const alertsPerPage = 10;
+const maxAlerts = 200;
 
 export default function AlertsPage() {
   const data = useOutletContext<ReturnType<typeof useNocData>>();
@@ -17,6 +19,7 @@ export default function AlertsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('todos');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('24h');
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
 
   const { visibleAlerts, suppressedAlerts } = getAlertSummary(data.alerts, data.devicesOfflineByProxy);
   const uniqueClients = useMemo(() => Array.from(new Set(data.groups.map(group => group.name))).sort(), [data.groups]);
@@ -37,7 +40,14 @@ export default function AlertsPage() {
       `${alert.device} ${alert.group} ${alert.message}`.toLowerCase().includes(normalizedSearch);
 
     return matchesSeverity && matchesClient && matchesStatus && matchesPeriod && matchesSearch;
-  }));
+  })).slice(0, maxAlerts);
+  const totalPages = Math.max(1, Math.ceil(filteredAlerts.length / alertsPerPage));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedAlerts = filteredAlerts.slice((currentPage - 1) * alertsPerPage, currentPage * alertsPerPage);
+
+  useEffect(() => {
+    setPage(1);
+  }, [clientFilter, normalizedSearch, periodFilter, severityFilter, statusFilter]);
 
   return (
     <div className="space-y-6">
@@ -45,7 +55,7 @@ export default function AlertsPage() {
         <div>
           <h1 className="text-2xl font-bold">Alertas Ativos</h1>
           <p className="text-sm text-muted-foreground">
-            {filteredAlerts.length} de {visibleAlerts.length} alertas visiveis
+            {filteredAlerts.length} de {visibleAlerts.length} alertas visiveis, limitado aos {maxAlerts} mais recentes
             {suppressedAlerts.length > 0 && ` / ${suppressedAlerts.length} suprimidos por proxy`}
           </p>
         </div>
@@ -108,8 +118,8 @@ export default function AlertsPage() {
       </div>
 
       <div className="space-y-2">
-        {filteredAlerts.length > 0 ? (
-          filteredAlerts.map((alert, index) => (
+        {paginatedAlerts.length > 0 ? (
+          paginatedAlerts.map((alert, index) => (
             <AlertRow key={alert.id} alert={alert} index={index} />
           ))
         ) : (
@@ -118,6 +128,32 @@ export default function AlertsPage() {
           </div>
         )}
       </div>
+
+      {filteredAlerts.length > alertsPerPage && (
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-card/70 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            Pagina {currentPage} de {totalPages} / {paginatedAlerts.length} itens nesta pagina
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage(value => Math.max(1, value - 1))}
+              disabled={currentPage === 1}
+              className="h-9 rounded-md border border-border px-3 text-sm text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Anterior
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage(value => Math.min(totalPages, value + 1))}
+              disabled={currentPage === totalPages}
+              className="h-9 rounded-md border border-border px-3 text-sm text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Proxima
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
