@@ -1,6 +1,8 @@
 # NOC Vision
 
-Web dashboard for operational monitoring of environments tracked through Zabbix.
+NOC Vision is a web dashboard for operational monitoring of network environments tracked through Zabbix.
+
+The project focuses on infrastructure visibility, alert prioritization and proxy-aware monitoring, separating offline proxies, truly offline devices and devices affected by proxy outages.
 
 ## Stack
 
