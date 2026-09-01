@@ -1,6 +1,7 @@
 import { ChevronRight, Search } from 'lucide-react';
 import type { Device, DeviceType, OperationalState } from '@/domain/noc';
 import { groupEnvironmentDevices } from '@/domain/noc-environments';
+import { INVENTORY_TYPE_LABELS } from '@/domain/noc-inventory';
 import { getOperationalState } from '@/domain/noc-selectors';
 import { OperationalStateBadge } from './OperationalStateBadge';
 
@@ -9,14 +10,6 @@ export interface EnvironmentInventoryFilters {
   state: OperationalState | 'all';
   type: DeviceType | 'all';
 }
-
-const typeLabels: Record<DeviceType, string> = {
-  server: 'Servidores',
-  camera: 'Câmeras',
-  router: 'Roteadores',
-  switch: 'Switches',
-  firewall: 'Firewalls',
-};
 
 export function EnvironmentInventoryView({
   devices,
@@ -42,13 +35,13 @@ export function EnvironmentInventoryView({
       <div className="grid gap-2 rounded-xl border border-border bg-card/50 p-3 sm:grid-cols-3">
         <label className="relative sm:col-span-1"><span className="sr-only">Buscar no inventário</span><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input value={filters.search} onChange={event => onFiltersChange({ ...filters, search: event.target.value })} placeholder="Equipamento, IP ou proxy" className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary" /></label>
         <select aria-label="Estado do equipamento" value={filters.state} onChange={event => onFiltersChange({ ...filters, state: event.target.value as EnvironmentInventoryFilters['state'] })} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"><option value="all">Todos os estados</option><option value="confirmed-failure">Falha confirmada</option><option value="warning">Alerta</option><option value="unconfirmed">Estado não confirmado</option><option value="functioning">Funcionando</option></select>
-        <select aria-label="Tipo de equipamento" value={filters.type} onChange={event => onFiltersChange({ ...filters, type: event.target.value as EnvironmentInventoryFilters['type'] })} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"><option value="all">Todos os tipos</option>{Object.entries(typeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+        <select aria-label="Tipo de equipamento" value={filters.type} onChange={event => onFiltersChange({ ...filters, type: event.target.value as EnvironmentInventoryFilters['type'] })} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"><option value="all">Todos os tipos</option>{Object.entries(INVENTORY_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
       </div>
       <p className="text-xs text-muted-foreground">{filtered.length} de {devices.length} equipamentos</p>
 
       {groups.length > 0 ? <div className="space-y-2">{groups.map((group, index) => (
         <details key={group.type} open={index === 0} className="group overflow-hidden rounded-xl border border-border bg-card/40">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3"><span className="font-semibold text-foreground">{typeLabels[group.type]} <span className="ml-1 font-mono text-xs text-muted-foreground">{group.devices.length}</span></span><ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-90" /></summary>
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3"><span className="font-semibold text-foreground">{INVENTORY_TYPE_LABELS[group.type]} <span className="ml-1 font-mono text-xs text-muted-foreground">{group.devices.length}</span></span><ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-90" /></summary>
           <div className="border-t border-border">
             {group.devices.map(device => <DeviceInventoryRow key={device.id} device={device} />)}
           </div>

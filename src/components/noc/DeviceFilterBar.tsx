@@ -27,6 +27,8 @@ const typeOptions: Array<{ value: DeviceType | 'all'; label: string }> = [
   { value: 'all', label: 'Todos tipos' },
   { value: 'server', label: 'Servidores' },
   { value: 'camera', label: 'Cameras' },
+  { value: 'recorder', label: 'NVR / DVR' },
+  { value: 'storage', label: 'Armazenamento' },
   { value: 'router', label: 'Roteadores' },
   { value: 'switch', label: 'Switches' },
   { value: 'firewall', label: 'Firewalls' },

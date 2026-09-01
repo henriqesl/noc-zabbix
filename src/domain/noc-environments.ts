@@ -123,7 +123,7 @@ export function filterEnvironmentSummaries(summaries: EnvironmentSummary[], filt
 }
 
 export function groupEnvironmentDevices(devices: Device[]) {
-  const order: DeviceType[] = ['server', 'camera', 'router', 'switch', 'firewall'];
+  const order: DeviceType[] = ['server', 'camera', 'recorder', 'storage', 'router', 'switch', 'firewall'];
   return order
     .map(type => ({ type, devices: devices.filter(device => device.type === type) }))
     .filter(group => group.devices.length > 0);

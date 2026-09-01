@@ -4,7 +4,7 @@ export type AlertSeverity = 'critical' | 'warning' | 'info';
 export interface Device {
   id: string;
   name: string;
-  type: 'server' | 'camera' | 'switch' | 'router' | 'firewall';
+  type: 'server' | 'camera' | 'recorder' | 'storage' | 'switch' | 'router' | 'firewall';
   group: string;
   status: DeviceStatus;
   ip: string;

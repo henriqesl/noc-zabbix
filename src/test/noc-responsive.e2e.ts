@@ -39,6 +39,12 @@ for (const viewport of viewports) {
     await expect(page.getByRole('table').getByText('Exemplo', { exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
     await page.screenshot({ path: path.join(os.tmpdir(), `noc-vision-environments-${viewport.name}.png`) });
+
+    await page.goto('/inventario');
+    await expect(page.getByRole('heading', { name: 'Equipamentos por tipo e ambiente' })).toBeVisible();
+    await expect(page.locator('summary').filter({ hasText: 'Câmeras' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+    await page.screenshot({ path: path.join(os.tmpdir(), `noc-vision-inventory-${viewport.name}.png`) });
   });
 }
 
@@ -121,6 +127,30 @@ test('ambiente orienta a investigação e preserva a tarefa na URL', async ({ pa
   await page.screenshot({ path: path.join(os.tmpdir(), 'noc-vision-environment-detail-full-hd.png') });
 });
 
+test('inventário unifica tipos e mantém compatibilidade com câmeras', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await mockZabbix(page);
+  await page.goto('/inventario');
+  await expect(page.locator('summary').filter({ hasText: 'Câmeras' })).toBeVisible();
+  await page.goto('/cameras');
+  await expect(page).toHaveURL(/\/inventario\?tipo=camera/);
+  await expect(page.getByRole('heading', { name: 'Equipamentos por tipo e ambiente' })).toBeVisible();
+  await expect(page.locator('summary').filter({ hasText: 'Câmeras' })).toBeVisible();
+
+  await page.getByLabel('Tipo').selectOption('recorder');
+  await expect(page).toHaveURL(/tipo=recorder/);
+  await expect(page.locator('summary').filter({ hasText: 'Gravadores NVR / DVR' })).toBeVisible();
+  await expect(page.getByText('NVR Intelbras 01', { exact: true })).toBeVisible();
+
+  await page.getByRole('textbox', { name: 'Buscar no inventário' }).fill('Intelbras');
+  await expect(page).toHaveURL(/busca=Intelbras/);
+  await page.getByLabel('Ambiente').selectOption('10');
+  await expect(page).toHaveURL(/cliente=10/);
+  await expect(page.getByRole('link', { name: 'Exemplo', exact: true })).toHaveAttribute('href', '/ambientes/10');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+  await page.screenshot({ path: path.join(os.tmpdir(), 'noc-vision-inventory-filtered-full-hd.png') });
+});
+
 async function mockZabbix(page: import('@playwright/test').Page) {
   await page.route('**/*', async route => {
     const request = route.request();
@@ -134,6 +164,10 @@ async function mockZabbix(page: import('@playwright/test').Page) {
         { hostid: '1', host: '10.0.0.10', name: 'Servidor principal', status: '0', available: '1', proxyid: '20', groups: [{ groupid: '10', name: '[CLIENTE] Exemplo' }] },
         { hostid: '2', host: '10.0.0.20', name: 'Câmera recepção', status: '0', available: '2', proxyid: '20', groups: [{ groupid: '10', name: '[CLIENTE] Exemplo' }] },
         { hostid: '3', host: '10.0.1.10', name: 'Servidor filial', status: '0', available: '1', groups: [{ groupid: '11', name: '[CLIENTE] Saudável' }] },
+        { hostid: '4', host: '10.0.0.30', name: 'NVR Intelbras 01', status: '0', available: '1', proxyid: '20', groups: [{ groupid: '10', name: '[CLIENTE] Exemplo' }] },
+        { hostid: '5', host: '10.0.0.40', name: 'Storage QNAP', status: '0', available: '1', proxyid: '20', groups: [{ groupid: '10', name: '[CLIENTE] Exemplo' }] },
+        { hostid: '6', host: '10.0.1.20', name: 'SW-CORE-01', status: '0', available: '1', groups: [{ groupid: '11', name: '[CLIENTE] Saudável' }] },
+        { hostid: '7', host: '10.0.1.30', name: 'Mikrotik Matriz', status: '0', available: '1', groups: [{ groupid: '11', name: '[CLIENTE] Saudável' }] },
       ],
       'trigger.get': [
         {

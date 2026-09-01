@@ -21,7 +21,7 @@ export default function EnvironmentsPage() {
   const filters = useMemo<EnvironmentFilters>(() => ({
     search: searchParams.get('busca') ?? '',
     status: readOption(searchParams.get('estado'), ['all', 'action', 'failure', 'alert', 'visibility', 'healthy'], 'all'),
-    type: readOption(searchParams.get('tipo'), ['all', 'server', 'camera', 'switch', 'router', 'firewall'], 'all'),
+    type: readOption(searchParams.get('tipo'), ['all', 'server', 'camera', 'recorder', 'storage', 'switch', 'router', 'firewall'], 'all'),
     bucket: readOption(searchParams.get('grupo'), ['all', 'base', 'cliente'], 'all'),
     sortBy: readOption(searchParams.get('ordem'), ['action', 'name', 'failures', 'devices'], 'action'),
   }), [searchParams]);
@@ -54,7 +54,7 @@ export default function EnvironmentsPage() {
             <option value="all">Todas as situações</option><option value="action">Exigem ação</option><option value="failure">Falha confirmada</option><option value="alert">Alerta</option><option value="visibility">Não confirmado</option><option value="healthy">Funcionando</option>
           </FilterSelect>
           <FilterSelect label="Tipo" value={filters.type} onChange={value => updateFilter('type', value as EnvironmentFilters['type'])}>
-            <option value="all">Todos os tipos</option><option value="server">Servidores</option><option value="camera">Câmeras</option><option value="router">Roteadores</option><option value="switch">Switches</option><option value="firewall">Firewalls</option>
+            <option value="all">Todos os tipos</option><option value="server">Servidores</option><option value="camera">Câmeras</option><option value="recorder">NVR / DVR</option><option value="storage">Armazenamento</option><option value="router">Roteadores</option><option value="switch">Switches</option><option value="firewall">Firewalls</option>
           </FilterSelect>
           <FilterSelect label="Grupo" value={filters.bucket} onChange={value => updateFilter('bucket', value as EnvironmentFilters['bucket'])}>
             <option value="all">Clientes e base</option><option value="cliente">Clientes</option><option value="base">Base Bionic</option>

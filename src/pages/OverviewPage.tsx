@@ -26,7 +26,7 @@ export default function OverviewPage() {
   const filters = useMemo<ClientGroupFilters>(() => ({
     search: searchParams.get('busca') ?? '',
     status: readOption(searchParams.get('estado'), ['all', 'online', 'offline', 'warning', 'unknown'], 'all'),
-    type: readOption(searchParams.get('tipo'), ['all', 'server', 'camera', 'switch', 'router', 'firewall'], 'all'),
+    type: readOption(searchParams.get('tipo'), ['all', 'server', 'camera', 'recorder', 'storage', 'switch', 'router', 'firewall'], 'all'),
     bucket: readOption(searchParams.get('grupo'), ['all', 'base', 'cliente'], 'all'),
     sortBy: readOption(searchParams.get('ordem'), ['criticality', 'name', 'health', 'offline', 'devices'], 'criticality'),
   }), [searchParams]);

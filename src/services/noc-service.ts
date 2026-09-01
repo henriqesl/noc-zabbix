@@ -1,6 +1,7 @@
 import { fetchHosts, fetchMetrics, fetchProxies, fetchTriggers, type ZabbixProxy } from './zabbix-api';
 import type { Alert, ClientGroup, DeviceType } from '@/domain/noc';
 import { classifyDevice, classifyProxy, isConfirmedFailureTrigger, toLegacyDeviceStatus } from '@/domain/noc-classifier';
+import { classifyDeviceType } from '@/domain/noc-inventory';
 import { getEnvironmentRestriction } from '@/domain/noc-restrictions';
 
 export async function fetchNocData() {
@@ -208,24 +209,7 @@ export async function fetchNocData() {
 }
 
 function detectDeviceType(hostName: string, groupName: string): DeviceType {
-  const normalizedHostName = normalizeDeviceLabel(hostName);
-  const normalizedGroupName = normalizeDeviceLabel(groupName);
-  if (normalizedHostName.includes('cam') || normalizedGroupName.includes('cam')) return 'camera';
-  if (
-    normalizedHostName.includes('rot') ||
-    normalizedHostName.includes('rout') ||
-    normalizedHostName.includes('mikrotik') ||
-    normalizedGroupName.includes('link') ||
-    normalizedGroupName.includes('rede')
-  ) return 'router';
-  if (normalizedHostName.includes('sw') || normalizedGroupName.includes('sw')) return 'switch';
-  if (normalizedHostName.includes('fire')) return 'firewall';
-
-  return 'server';
-}
-
-function normalizeDeviceLabel(value: string) {
-  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return classifyDeviceType(hostName, groupName);
 }
 
 function formatProxyName(name: string) {

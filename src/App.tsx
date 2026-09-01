@@ -6,7 +6,7 @@ import { Toaster as Sonner } from '@/components/ui/sonner';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import AlertsPage from './pages/AlertsPage';
-import CamerasPage from './pages/CamerasPage';
+import InventoryPage from './pages/InventoryPage';
 import ClientDetailPage from './pages/ClientDetailPage';
 import EnvironmentsPage from './pages/EnvironmentsPage';
 import InfraPage from './pages/InfraPage';
@@ -27,7 +27,7 @@ const App = () => (
             <Route path="/ocorrencias" element={<AlertsPage />} />
             <Route path="/ambientes" element={<EnvironmentsPage />} />
             <Route path="/ambientes/:clientId" element={<ClientDetailPage />} />
-            <Route path="/inventario" element={<CamerasPage />} />
+            <Route path="/inventario" element={<InventoryPage />} />
             <Route path="/infraestrutura" element={<InfraPage />} />
             <Route path="/alerts" element={<LegacyRedirect pathname="/ocorrencias" />} />
             <Route path="/cameras" element={<LegacyRedirect pathname="/inventario" defaults={{ tipo: 'camera' }} />} />

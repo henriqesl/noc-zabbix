@@ -1,6 +1,6 @@
 export type DeviceStatus = 'online' | 'offline' | 'warning' | 'unknown';
 export type AlertSeverity = 'critical' | 'warning' | 'info';
-export type DeviceType = 'server' | 'camera' | 'switch' | 'router' | 'firewall';
+export type DeviceType = 'server' | 'camera' | 'recorder' | 'storage' | 'switch' | 'router' | 'firewall';
 
 export type EquipmentHealth = 'healthy' | 'warning' | 'failed' | 'unknown';
 export type VisibilityQuality = 'current' | 'delayed' | 'limited' | 'lost';

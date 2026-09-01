@@ -33,7 +33,7 @@ export default function ClientDetailPage() {
   const inventoryFilters: EnvironmentInventoryFilters = {
     search: searchParams.get('busca') ?? '',
     state: readOption(searchParams.get('estado'), ['all', 'functioning', 'warning', 'confirmed-failure', 'unconfirmed'], 'all'),
-    type: readOption(searchParams.get('tipo'), ['all', 'server', 'camera', 'switch', 'router', 'firewall'], 'all'),
+    type: readOption(searchParams.get('tipo'), ['all', 'server', 'camera', 'recorder', 'storage', 'switch', 'router', 'firewall'], 'all'),
   };
   const selectedId = searchParams.get('ocorrencia');
   const selectedOccurrence = summary?.occurrences.find(occurrence => occurrence.id === selectedId) ?? null;
