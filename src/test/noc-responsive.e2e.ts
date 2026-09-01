@@ -33,6 +33,12 @@ for (const viewport of viewports) {
     await expect(page.getByRole('tab', { name: /Falhas 1/ })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
     await page.screenshot({ path: path.join(os.tmpdir(), `noc-vision-occurrences-${viewport.name}.png`) });
+
+    await page.goto('/ambientes');
+    await expect(page.getByRole('heading', { name: 'Ambientes em ordem de ação' })).toBeVisible();
+    await expect(page.getByRole('table').getByText('Exemplo', { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+    await page.screenshot({ path: path.join(os.tmpdir(), `noc-vision-environments-${viewport.name}.png`) });
   });
 }
 
@@ -80,6 +86,41 @@ test('ocorrências preservam filtros e evidências na URL', async ({ page }) => 
   await page.screenshot({ path: path.join(os.tmpdir(), 'noc-vision-occurrences-full-hd.png') });
 });
 
+test('ambiente orienta a investigação e preserva a tarefa na URL', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await mockZabbix(page);
+  await page.goto('/ambientes');
+
+  await page.getByLabel('Situação').selectOption('failure');
+  await expect(page).toHaveURL(/estado=failure/);
+  await expect(page.getByRole('table').getByText('Exemplo', { exact: true })).toBeVisible();
+  await expect(page.getByRole('table').getByText('Saudável', { exact: true })).toHaveCount(0);
+
+  const investigate = page.getByRole('table').getByRole('link', { name: 'Investigar' });
+  await expect(investigate).toHaveAttribute('href', '/ambientes/10?aba=atencao');
+  await investigate.click();
+  await expect(page.getByRole('heading', { name: 'Exemplo' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Onde começar neste ambiente' })).toBeVisible();
+  await page.screenshot({ path: path.join(os.tmpdir(), 'noc-vision-environment-attention-full-hd.png') });
+
+  await page.getByRole('tab', { name: 'Inventário' }).click();
+  await expect(page).toHaveURL(/aba=inventario/);
+  await page.getByRole('textbox', { name: 'Buscar no inventário' }).fill('Câmera');
+  await expect(page).toHaveURL(/busca=C(?:%C3%A2|%c3%a2)mera/);
+  await expect(page.locator('summary').filter({ hasText: 'Câmeras' })).toBeVisible();
+
+  await page.getByRole('tab', { name: 'Ocorrências' }).click();
+  await expect(page).toHaveURL(/aba=ocorrencias/);
+  await expect(page.getByRole('heading', { name: 'Ocorrências do ambiente' })).toBeVisible();
+
+  await page.getByRole('tab', { name: 'Infraestrutura' }).click();
+  await expect(page).toHaveURL(/aba=infraestrutura/);
+  await expect(page.getByRole('heading', { name: 'Proxies associados' })).toBeVisible();
+  await expect(page.getByText('Proxy Cliente - Proxy', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+  await page.screenshot({ path: path.join(os.tmpdir(), 'noc-vision-environment-detail-full-hd.png') });
+});
+
 async function mockZabbix(page: import('@playwright/test').Page) {
   await page.route('**/*', async route => {
     const request = route.request();
@@ -90,8 +131,9 @@ async function mockZabbix(page: import('@playwright/test').Page) {
 
     const result = {
       'host.get': [
-        { hostid: '1', host: '10.0.0.10', name: 'Servidor principal', status: '0', available: '1', groups: [{ groupid: '10', name: '[CLIENTE] Exemplo' }] },
-        { hostid: '2', host: '10.0.0.20', name: 'Câmera recepção', status: '0', available: '2', groups: [{ groupid: '10', name: '[CLIENTE] Exemplo' }] },
+        { hostid: '1', host: '10.0.0.10', name: 'Servidor principal', status: '0', available: '1', proxyid: '20', groups: [{ groupid: '10', name: '[CLIENTE] Exemplo' }] },
+        { hostid: '2', host: '10.0.0.20', name: 'Câmera recepção', status: '0', available: '2', proxyid: '20', groups: [{ groupid: '10', name: '[CLIENTE] Exemplo' }] },
+        { hostid: '3', host: '10.0.1.10', name: 'Servidor filial', status: '0', available: '1', groups: [{ groupid: '11', name: '[CLIENTE] Saudável' }] },
       ],
       'trigger.get': [
         {
@@ -104,7 +146,7 @@ async function mockZabbix(page: import('@playwright/test').Page) {
           groups: [{ groupid: '10', name: '[CLIENTE] Exemplo' }],
         },
       ],
-      'proxy.get': [],
+      'proxy.get': [{ proxyid: '20', name: 'Proxy Cliente', lastaccess: String(Math.floor(Date.now() / 1000) - 15), status: '5' }],
       'item.get': [],
     }[body.method] ?? [];
 

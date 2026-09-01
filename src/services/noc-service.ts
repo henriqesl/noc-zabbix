@@ -208,18 +208,24 @@ export async function fetchNocData() {
 }
 
 function detectDeviceType(hostName: string, groupName: string): DeviceType {
-  if (hostName.includes('cam') || groupName.includes('cam')) return 'camera';
+  const normalizedHostName = normalizeDeviceLabel(hostName);
+  const normalizedGroupName = normalizeDeviceLabel(groupName);
+  if (normalizedHostName.includes('cam') || normalizedGroupName.includes('cam')) return 'camera';
   if (
-    hostName.includes('rot') ||
-    hostName.includes('rout') ||
-    hostName.includes('mikrotik') ||
-    groupName.includes('link') ||
-    groupName.includes('rede')
+    normalizedHostName.includes('rot') ||
+    normalizedHostName.includes('rout') ||
+    normalizedHostName.includes('mikrotik') ||
+    normalizedGroupName.includes('link') ||
+    normalizedGroupName.includes('rede')
   ) return 'router';
-  if (hostName.includes('sw') || groupName.includes('sw')) return 'switch';
-  if (hostName.includes('fire')) return 'firewall';
+  if (normalizedHostName.includes('sw') || normalizedGroupName.includes('sw')) return 'switch';
+  if (normalizedHostName.includes('fire')) return 'firewall';
 
   return 'server';
+}
+
+function normalizeDeviceLabel(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
 function formatProxyName(name: string) {
