@@ -20,10 +20,10 @@ interface NocHeaderProps {
 
 const navItems = [
   { label: 'Resumo', to: '/' },
-  { label: 'Ocorrências', to: '/alerts' },
-  { label: 'Ambientes', to: '/#ambientes' },
-  { label: 'Inventário', to: '/cameras' },
-  { label: 'Infraestrutura', to: '/infra' },
+  { label: 'Ocorrências', to: '/ocorrencias' },
+  { label: 'Ambientes', to: '/ambientes' },
+  { label: 'Inventário', to: '/inventario' },
+  { label: 'Infraestrutura', to: '/infraestrutura' },
 ];
 
 export function NocHeader(props: NocHeaderProps) {
@@ -54,9 +54,7 @@ export function NocHeader(props: NocHeaderProps) {
 
         <nav className="hidden h-full items-center gap-1 lg:flex" aria-label="Navegação principal">
           {navItems.map(item => {
-            const active = item.to === '/#ambientes'
-              ? pathname === '/' && hash === '#ambientes'
-              : item.to === '/' ? pathname === '/' && hash !== '#ambientes' : pathname === item.to;
+            const active = item.to === '/' ? pathname === '/' : pathname.startsWith(item.to);
             return <Link key={item.label} to={navTarget(item.to, currentMode)} className={cn('noc-nav-link', active && 'noc-nav-link-active')}>{item.label}</Link>;
           })}
         </nav>
@@ -111,10 +109,9 @@ function StatusDot({ value, label, tone, analysisOnly = false }: { value: number
 }
 
 function navTarget(target: string, mode: string | null) {
-  const hasEnvironmentHash = target === '/#ambientes';
   return {
-    pathname: hasEnvironmentHash ? '/' : target,
-    hash: hasEnvironmentHash ? 'ambientes' : '',
+    pathname: target,
+    hash: '',
     search: mode ? `?mode=${encodeURIComponent(mode)}` : '',
   };
 }

@@ -2,8 +2,8 @@ import { useMemo } from 'react';
 import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, CheckCircle2, ChevronRight, EyeOff, MonitorCheck, Siren } from 'lucide-react';
 import { ClientFilterBar } from '@/components/noc/ClientFilterBar';
+import { AttentionQueue } from '@/components/noc/AttentionQueue';
 import { GroupSummaryCard } from '@/components/noc/GroupSummaryCard';
-import { OfflineByClientPanel } from '@/components/noc/OfflineByClientPanel';
 import { StatusCard } from '@/components/noc/StatusCard';
 import { VisibilityPanel } from '@/components/noc/VisibilityPanel';
 import { useNocData } from '@/hooks/use-noc-data';
@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import {
   filterClientGroups,
   getAlertSummary,
+  getEnvironmentAttentionQueue,
   groupByBucket,
   groupOfflineDevicesByClient,
   isActiveNocGroup,
@@ -40,6 +41,10 @@ export default function OverviewPage() {
   };
   const alertSummary = getAlertSummary(data.alerts, data.visibilityAffectedDevices);
   const activeGroups = useMemo(() => data.groups.filter(isActiveNocGroup), [data.groups]);
+  const attentionQueue = useMemo(
+    () => getEnvironmentAttentionQueue(activeGroups, data.alerts),
+    [activeGroups, data.alerts]
+  );
   const filteredGroups = useMemo(() => filterClientGroups(data.groups, filters), [data.groups, filters]);
   const groupedFilteredGroups = useMemo(() => groupByBucket(filteredGroups), [filteredGroups]);
   const affectedClients = useMemo(
@@ -58,8 +63,8 @@ export default function OverviewPage() {
               Uma leitura simples do que está funcionando, do que precisa de ação e do que não pôde ser verificado.
             </p>
           </div>
-          <Link to="/alerts" className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
-            Abrir central de alertas <ChevronRight className="h-4 w-4" />
+          <Link to="/ocorrencias" className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
+            Ver todas as ocorrências <ChevronRight className="h-4 w-4" />
           </Link>
         </div>
 
@@ -83,25 +88,34 @@ export default function OverviewPage() {
         </div>
       </section>
 
-      <section className="space-y-4">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Prioridades</p>
-            <h2 className="mt-1 text-2xl font-semibold text-foreground">O que merece atenção agora</h2>
+      <section className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(22rem,0.85fr)]">
+        <div className="space-y-3">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Prioridades</p>
+              <h2 className="mt-1 text-2xl font-semibold text-foreground">Onde começar</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Até cinco ambientes, ordenados pelo impacto e pela duração.</p>
+            </div>
+            <Link to="/ocorrencias" className="hidden items-center gap-1 text-xs font-semibold text-primary sm:flex">Ver todas<ChevronRight className="h-3.5 w-3.5" /></Link>
           </div>
-          <span className="hidden rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground md:inline-flex">Vermelho = agir · Azul = verificar acesso</span>
+
+          {attentionQueue.length > 0 ? (
+            <AttentionQueue items={attentionQueue} />
+          ) : (
+            <div className="flex items-center gap-3 rounded-xl border border-noc-ok/25 bg-noc-ok/[0.04] px-4 py-4">
+              <CheckCircle2 className="h-5 w-5 text-noc-ok" />
+              <div><p className="font-semibold text-foreground">Nada exige ação agora</p><p className="text-sm text-muted-foreground">Nenhuma falha, alerta ou limitação de visibilidade foi encontrada.</p></div>
+            </div>
+          )}
         </div>
 
-        {data.realOfflineDevices.length > 0 ? (
-          <OfflineByClientPanel title="Falhas confirmadas" description="Comece por estes ambientes. Clique em cada item para ver os equipamentos." devices={data.realOfflineDevices} />
-        ) : (
-          <div className="flex items-center gap-3 rounded-xl border border-noc-ok/30 bg-noc-ok/[0.06] p-5">
-            <CheckCircle2 className="h-6 w-6 text-noc-ok" />
-            <div><p className="font-semibold text-foreground">Nenhuma falha confirmada</p><p className="text-sm text-muted-foreground">Não há equipamentos exigindo ação imediata nesta leitura.</p></div>
+        <div className="space-y-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Confiança da leitura</p>
+            <h2 className="mt-1 text-2xl font-semibold text-foreground">Visibilidade</h2>
           </div>
-        )}
-
-        <VisibilityPanel groups={activeGroups} proxies={data.offlineProxies} affectedDevices={data.visibilityAffectedDevices} />
+          <VisibilityPanel groups={activeGroups} proxies={data.offlineProxies} affectedDevices={data.visibilityAffectedDevices} />
+        </div>
       </section>
 
       <section id="ambientes" className="scroll-mt-24 space-y-4 border-t border-border pt-7">
@@ -134,7 +148,7 @@ export default function OverviewPage() {
                   <span className="rounded-full bg-muted px-2.5 py-1 font-mono text-xs text-muted-foreground">{groups.length}</span>
                 </div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3 min-[2400px]:grid-cols-4">
-                  {groups.map((group, index) => <Link key={group.id} to={`/cliente/${group.id}`} className="block rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"><GroupSummaryCard group={group} index={index} /></Link>)}
+                  {groups.map((group, index) => <Link key={group.id} to={`/ambientes/${group.id}`} className="block rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"><GroupSummaryCard group={group} index={index} /></Link>)}
                 </div>
               </section>
             );

@@ -17,9 +17,14 @@ for (const viewport of viewports) {
     await expect(page.getByRole('heading', { name: 'Situação da operação' })).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Navegação principal' })).toBeVisible();
     await expect(page.getByText('Precisa de ação', { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Onde começar' })).toBeVisible();
+    const firstEnvironment = page.getByRole('list', { name: 'Ambientes prioritários' }).getByRole('link').first();
+    await expect(firstEnvironment).toHaveAttribute('href', '/ambientes/10');
 
     const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     expect(hasHorizontalOverflow).toBe(false);
+    const firstEnvironmentBox = await firstEnvironment.boundingBox();
+    expect(firstEnvironmentBox && firstEnvironmentBox.y + firstEnvironmentBox.height).toBeLessThanOrEqual(viewport.height);
 
     await page.screenshot({ path: path.join(os.tmpdir(), `noc-vision-${viewport.name}.png`) });
   });

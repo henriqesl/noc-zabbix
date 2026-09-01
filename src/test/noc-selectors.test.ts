@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { ClientGroup, Device, DeviceClassification } from '@/domain/noc';
-import { filterClientGroups, getGroupHealth, getNocSummary, isRealOfflineDevice } from '@/domain/noc-selectors';
+import type { Alert, ClientGroup, Device, DeviceClassification } from '@/domain/noc';
+import { filterClientGroups, getEnvironmentAttentionQueue, getGroupHealth, getNocSummary, isRealOfflineDevice } from '@/domain/noc-selectors';
 
 const classifications: Record<'functioning' | 'failure' | 'unconfirmed', DeviceClassification> = {
   functioning: {
@@ -54,5 +54,53 @@ describe('classificação operacional nos seletores', () => {
     expect(filterClientGroups([group], {
       search: 'terphane', status: 'all', type: 'all', bucket: 'all', sortBy: 'criticality',
     })).toEqual([group]);
+  });
+
+  it('ordena Onde começar por falha, severidade, quantidade, duração, alertas e nome', () => {
+    const now = Date.parse('2026-09-01T12:00:00.000Z');
+    const failureAt = (minutes: number, id: string) => device({
+      id,
+      status: 'offline',
+      offlineReason: 'host',
+      classification: {
+        ...classifications.failure,
+        evidence: { ...classifications.failure.evidence, observedAt: new Date(now - minutes * 60_000).toISOString() },
+      },
+    });
+    const unknown = device({
+      id: 'unknown', status: 'unknown', classification: {
+        ...classifications.unconfirmed,
+        evidence: { ...classifications.unconfirmed.evidence, observedAt: new Date(now - 120 * 60_000).toISOString() },
+      },
+    });
+    const groups: ClientGroup[] = [
+      { id: 'one-failure', name: '[CLIENTE] Uma falha', devices: [failureAt(60, 'f1')] },
+      { id: 'two-failures', name: '[CLIENTE] Duas falhas', devices: [failureAt(10, 'f2'), failureAt(10, 'f3')] },
+      { id: 'critical-alert', name: '[CLIENTE] Alerta crítico', devices: [device({ id: 'a1' })] },
+      { id: 'warning-alert', name: '[CLIENTE] Alerta aviso', devices: [device({ id: 'a2' })] },
+      { id: 'visibility', name: '[CLIENTE] Visibilidade', devices: [unknown] },
+      { id: 'healthy', name: '[CLIENTE] Saudável', devices: [device({ id: 'ok' })] },
+    ];
+    const alerts: Alert[] = [
+      { id: 'critical', hostId: 'a1', device: 'Host', group: '[CLIENTE] Alerta crítico', message: 'CPU', severity: 'critical', timestamp: String((now - 5 * 60_000) / 1000) },
+      { id: 'warning', hostId: 'a2', device: 'Host', group: '[CLIENTE] Alerta aviso', message: 'Disco', severity: 'warning', timestamp: String((now - 30 * 60_000) / 1000) },
+    ];
+
+    expect(getEnvironmentAttentionQueue(groups, alerts, now).map(item => item.group.id)).toEqual([
+      'two-failures', 'one-failure', 'critical-alert', 'warning-alert', 'visibility',
+    ]);
+  });
+
+  it('não usa alerta de host sem visibilidade para promover uma falha inexistente', () => {
+    const unknown = device({ id: 'host-via-proxy', status: 'unknown', classification: classifications.unconfirmed });
+    const group: ClientGroup = { id: 'limited', name: '[CLIENTE] Restrito', devices: [unknown] };
+    const alerts: Alert[] = [{
+      id: 'stale', hostId: unknown.id, device: unknown.name, group: group.name,
+      message: 'Host unavailable', severity: 'critical', timestamp: String(Date.now() / 1000),
+    }];
+
+    expect(getEnvironmentAttentionQueue([group], alerts)[0]).toMatchObject({
+      kind: 'visibility', dominantSeverity: 'visibility', activeAlerts: [],
+    });
   });
 });

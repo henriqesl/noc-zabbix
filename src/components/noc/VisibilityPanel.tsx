@@ -54,7 +54,7 @@ export function VisibilityPanel({ groups, proxies, affectedDevices }: Visibility
         </div>
       </div>
 
-      <div className="grid gap-3 p-4 lg:grid-cols-2 lg:p-5">
+      <div className="grid gap-3 p-4 lg:p-5">
         {restrictedClients.map(client => (
           <div key={client.name} className="rounded-lg border border-border bg-card/80 p-4">
             <div className="flex items-start gap-3">

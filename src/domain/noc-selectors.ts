@@ -12,6 +12,20 @@ export interface ClientGroupFilters {
   sortBy: ClientSortKey;
 }
 
+export type AttentionKind = 'failure' | 'alert' | 'visibility';
+
+export interface EnvironmentAttention {
+  group: ClientGroup;
+  kind: AttentionKind;
+  confirmedFailures: Device[];
+  warningDevices: Device[];
+  visibilityAffected: Device[];
+  activeAlerts: Alert[];
+  dominantSeverity: 'failure' | Alert['severity'] | 'visibility';
+  startedAt?: number;
+  durationMs: number;
+}
+
 const normalize = (value: string) =>
   value
     .normalize('NFD')
@@ -95,6 +109,15 @@ export function getAlertSummary(alerts: Alert[], devicesOfflineByProxy: Device[]
     warningAlerts,
     totalActiveAlerts: criticalAlerts.length + warningAlerts.length,
   };
+}
+
+export function getEnvironmentAttentionQueue(groups: ClientGroup[], alerts: Alert[], now = Date.now(), limit = 5) {
+  return groups
+    .filter(isActiveNocGroup)
+    .map(group => buildEnvironmentAttention(group, alerts, now))
+    .filter((item): item is EnvironmentAttention => item !== null)
+    .sort(compareEnvironmentAttention)
+    .slice(0, limit);
 }
 
 export function isProxyDevice(device: Device) {
@@ -293,6 +316,78 @@ function compareGroups(a: ClientGroup, b: ClientGroup, sortBy: ClientSortKey) {
   if (sortBy === 'devices') return healthB.total - healthA.total;
 
   return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+}
+
+function buildEnvironmentAttention(group: ClientGroup, alerts: Alert[], now: number): EnvironmentAttention | null {
+  const confirmedFailures = group.devices.filter(isRealOfflineDevice);
+  const warningDevices = group.devices.filter(device => getOperationalState(device) === 'warning');
+  const visibilityAffected = group.devices.filter(device => getOperationalState(device) === 'unconfirmed');
+  const unconfirmedHostIds = new Set(visibilityAffected.map(device => device.id));
+  const activeAlerts = alerts.filter(alert =>
+    alert.group === group.name && (!alert.hostId || !unconfirmedHostIds.has(alert.hostId))
+  );
+
+  if (!confirmedFailures.length && !warningDevices.length && !visibilityAffected.length && !activeAlerts.length) {
+    return null;
+  }
+
+  const dominantSeverity = getDominantSeverity(confirmedFailures, warningDevices, visibilityAffected, activeAlerts);
+  const kind: AttentionKind = confirmedFailures.length > 0
+    ? 'failure'
+    : activeAlerts.length > 0 || warningDevices.length > 0
+      ? 'alert'
+      : 'visibility';
+  const timestamps = [
+    ...confirmedFailures.map(device => parseAlertTime(device.classification.evidence.observedAt)),
+    ...warningDevices.map(device => parseAlertTime(device.classification.evidence.observedAt)),
+    ...visibilityAffected.map(device => parseAlertTime(device.classification.evidence.observedAt)),
+    ...activeAlerts.map(alert => parseAlertTime(alert.timestamp)),
+  ].filter(timestamp => timestamp > 0 && timestamp <= now);
+  const startedAt = timestamps.length ? Math.min(...timestamps) : undefined;
+
+  return {
+    group,
+    kind,
+    confirmedFailures,
+    warningDevices,
+    visibilityAffected,
+    activeAlerts,
+    dominantSeverity,
+    startedAt,
+    durationMs: startedAt ? Math.max(0, now - startedAt) : 0,
+  };
+}
+
+function getDominantSeverity(
+  failures: Device[],
+  warnings: Device[],
+  visibility: Device[],
+  alerts: Alert[]
+): EnvironmentAttention['dominantSeverity'] {
+  if (failures.length) return 'failure';
+  if (alerts.some(alert => alert.severity === 'critical')) return 'critical';
+  if (alerts.some(alert => alert.severity === 'warning') || warnings.length) return 'warning';
+  if (alerts.some(alert => alert.severity === 'info')) return 'info';
+  if (visibility.length) return 'visibility';
+  return 'info';
+}
+
+function compareEnvironmentAttention(a: EnvironmentAttention, b: EnvironmentAttention) {
+  const aHasFailure = a.confirmedFailures.length > 0 ? 1 : 0;
+  const bHasFailure = b.confirmedFailures.length > 0 ? 1 : 0;
+
+  return (
+    bHasFailure - aHasFailure ||
+    attentionSeverityRank(b.dominantSeverity) - attentionSeverityRank(a.dominantSeverity) ||
+    b.confirmedFailures.length - a.confirmedFailures.length ||
+    b.durationMs - a.durationMs ||
+    b.activeAlerts.length - a.activeAlerts.length ||
+    cleanGroupName(a.group.name).localeCompare(cleanGroupName(b.group.name), undefined, { numeric: true, sensitivity: 'base' })
+  );
+}
+
+function attentionSeverityRank(severity: EnvironmentAttention['dominantSeverity']) {
+  return { failure: 5, critical: 4, warning: 3, info: 2, visibility: 1 }[severity];
 }
 
 function uniqueDevices(devices: Device[]) {

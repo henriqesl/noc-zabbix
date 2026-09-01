@@ -51,7 +51,7 @@ export default function ClientDetailPage() {
     return (
       <div className="py-20 text-center">
         <p className="text-xl text-muted-foreground">Cliente nao encontrado</p>
-        <Link to="/" className="mt-4 inline-block text-primary underline">Voltar</Link>
+        <Link to="/ambientes" className="mt-4 inline-block text-primary underline">Voltar</Link>
       </div>
     );
   }
@@ -64,7 +64,7 @@ export default function ClientDetailPage() {
   return (
     <div className="space-y-6 lg:space-y-8">
       <div className="flex items-center gap-4">
-        <Link to="/" className="rounded-lg border border-border p-2 transition-colors hover:bg-accent">
+        <Link to="/ambientes" className="rounded-lg border border-border p-2 transition-colors hover:bg-accent">
           <ArrowLeft className="h-5 w-5 text-muted-foreground" />
         </Link>
         <div className="min-w-0">
