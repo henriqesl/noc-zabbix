@@ -11,7 +11,7 @@ import { DeviceFilterBar, type DeviceFilters } from '@/components/noc/DeviceFilt
 import { StatusCard } from '@/components/noc/StatusCard';
 import { useNocData } from '@/hooks/use-noc-data';
 import { cn } from '@/lib/utils';
-import { cleanGroupName, filterDevices, getAlertSummary, isOfflineByProxy } from '@/domain/noc-selectors';
+import { cleanGroupName, filterDevices, getAlertSummary, isOfflineByProxy, isRealOfflineDevice } from '@/domain/noc-selectors';
 import type { Device, DeviceType } from '@/domain/noc';
 
 const typeIcon: Record<DeviceType, typeof Server> = {
@@ -52,9 +52,9 @@ export default function ClientDetailPage() {
   }
 
   const online = devices.filter(device => device.status === 'online').length;
-  const offline = devices.filter(device => device.status === 'offline' && !isOfflineByProxy(device));
-  const offlineByProxy = devices.filter(isOfflineByProxy);
-  const clientAlerts = getAlertSummary(data.alerts, data.devicesOfflineByProxy).visibleAlerts.filter(alert => alert.group === group.name);
+  const offline = devices.filter(isRealOfflineDevice);
+  const withoutConfirmation = devices.filter(device => isOfflineByProxy(device) || device.status === 'unknown');
+  const clientAlerts = getAlertSummary(data.alerts, data.visibilityAffectedDevices).visibleAlerts.filter(alert => alert.group === group.name);
   const criticalAlerts = clientAlerts.filter(alert => alert.severity === 'critical');
   return (
     <div className="space-y-6 lg:space-y-8">
@@ -79,16 +79,16 @@ export default function ClientDetailPage() {
           variant="success"
         />
         <StatusCard
-          title="Offline Real"
+          title="Falha confirmada"
           value={offline.length}
           icon={<MonitorOff className="h-5 w-5" />}
           variant={offline.length > 0 ? 'critical' : 'default'}
         />
         <StatusCard
-          title="Via Proxy"
-          value={offlineByProxy.length}
+          title="Sem confirmacao"
+          value={withoutConfirmation.length}
           icon={<MonitorOff className="h-5 w-5" />}
-          variant={offlineByProxy.length > 0 ? 'warning' : 'default'}
+          variant={withoutConfirmation.length > 0 ? 'warning' : 'default'}
         />
         <StatusCard
           title="Alertas"
@@ -103,7 +103,7 @@ export default function ClientDetailPage() {
         <section>
           <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold text-noc-critical">
             <span className="h-3 w-3 rounded-full bg-noc-critical animate-pulse-dot" />
-            Dispositivos Offline ({offline.length})
+            Falhas confirmadas ({offline.length})
           </h2>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3 min-[1800px]:grid-cols-4">
             {offline.map((device: Device, i) => {

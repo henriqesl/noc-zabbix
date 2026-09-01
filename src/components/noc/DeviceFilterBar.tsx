@@ -19,6 +19,7 @@ const statusOptions: Array<{ value: DeviceStatus | 'all'; label: string }> = [
   { value: 'all', label: 'Todos status' },
   { value: 'offline', label: 'Offline' },
   { value: 'warning', label: 'Alerta' },
+  { value: 'unknown', label: 'Estado não confirmado' },
   { value: 'online', label: 'Online' },
 ];
 

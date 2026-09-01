@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { AlertTriangle, BellRing, EyeOff, Search, Siren } from 'lucide-react';
 import { AlertRow } from '@/components/noc/AlertRow';
+import { StatusCard } from '@/components/noc/StatusCard';
 import { useNocData } from '@/hooks/use-noc-data';
 import { getAlertSummary, isWithinPeriod, sortAlertsByDateDesc } from '@/domain/noc-selectors';
 import type { AlertSeverity } from '@/domain/noc';
@@ -21,7 +22,7 @@ export default function AlertsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
-  const { visibleAlerts, suppressedAlerts } = getAlertSummary(data.alerts, data.devicesOfflineByProxy);
+  const { visibleAlerts, suppressedAlerts, criticalAlerts, warningAlerts } = getAlertSummary(data.alerts, data.visibilityAffectedDevices);
   const uniqueClients = useMemo(() => Array.from(new Set(data.groups.map(group => group.name))).sort(), [data.groups]);
   const normalizedSearch = search.trim().toLowerCase();
 
@@ -50,17 +51,25 @@ export default function AlertsPage() {
   }, [clientFilter, normalizedSearch, periodFilter, severityFilter, statusFilter]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7 2xl:space-y-9">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Alertas Ativos</h1>
-          <p className="text-sm text-muted-foreground">
-            {filteredAlerts.length} de {visibleAlerts.length} alertas visiveis, limitado aos {maxAlerts} mais recentes
-            {suppressedAlerts.length > 0 && ` / ${suppressedAlerts.length} suprimidos por proxy`}
-          </p>
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">Central de alertas</p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight lg:text-4xl">Eventos que precisam de análise</h1>
+          <p className="mt-2 text-sm text-muted-foreground lg:text-base">Alertas em ordem de prioridade e horário. Use os filtros para investigar um cliente.</p>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:min-w-[980px] xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatusCard title="Alta severidade" value={criticalAlerts.length} subtitle="avaliar primeiro" icon={<Siren className="h-5 w-5" />} variant={criticalAlerts.length ? 'critical' : 'default'} />
+        <StatusCard title="Avisos" value={warningAlerts.length} subtitle="podem exigir acompanhamento" icon={<AlertTriangle className="h-5 w-5" />} variant={warningAlerts.length ? 'warning' : 'default'} />
+        <StatusCard title="Fora da contagem" value={suppressedAlerts.length} subtitle="estado não confirmado pelo proxy" icon={<EyeOff className="h-5 w-5" />} variant={suppressedAlerts.length ? 'info' : 'default'} />
+        <StatusCard title="Alertas exibidos" value={filteredAlerts.length} subtitle={`de ${visibleAlerts.length} acionáveis`} icon={<BellRing className="h-5 w-5" />} />
+      </div>
+
+      <section className="rounded-xl border border-border bg-card/70 p-4">
+        <div className="mb-3"><h2 className="font-semibold text-foreground">Filtrar alertas</h2><p className="text-xs text-muted-foreground">A lista mostra no máximo os {maxAlerts} eventos mais recentes.</p></div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
           <div className="relative sm:col-span-2 xl:col-span-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -115,7 +124,7 @@ export default function AlertsPage() {
             ))}
           </select>
         </div>
-      </div>
+      </section>
 
       <div className="space-y-2">
         {paginatedAlerts.length > 0 ? (
@@ -132,7 +141,7 @@ export default function AlertsPage() {
       {filteredAlerts.length > alertsPerPage && (
         <div className="flex flex-col gap-3 rounded-lg border border-border bg-card/70 p-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
-            Pagina {currentPage} de {totalPages} / {paginatedAlerts.length} itens nesta pagina
+            Página {currentPage} de {totalPages} · {paginatedAlerts.length} itens nesta página
           </p>
           <div className="flex items-center gap-2">
             <button
@@ -149,7 +158,7 @@ export default function AlertsPage() {
               disabled={currentPage === totalPages}
               className="h-9 rounded-md border border-border px-3 text-sm text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Proxima
+              Próxima
             </button>
           </div>
         </div>

@@ -17,14 +17,17 @@ export function NocLayout() {
             isRefreshing={nocData.isRefreshing}
             onRefresh={nocData.refresh}
             onlineCount={nocData.onlineCount}
-            offlineCount={nocData.offlineCount}
-            totalCount={nocData.totalCount}
+            confirmedCount={nocData.realOfflineDevices.length}
+            unconfirmedCount={nocData.visibilityAffectedDevices.length}
+            error={nocData.error}
           />
-          <div className="flex items-center gap-2 border-b border-border bg-card/30 px-4 py-2 lg:px-6">
+          <div className="flex items-center gap-2 border-b border-border bg-card/30 px-4 py-2 lg:hidden">
             <SidebarTrigger />
           </div>
-          <main className="flex-1 overflow-auto p-4 lg:p-6 xl:p-8">
-            <Outlet context={nocData} />
+          <main className="flex-1 overflow-auto p-4 sm:p-5 lg:p-7 xl:p-8 2xl:p-10">
+            <div className="mx-auto w-full max-w-[220rem]">
+              <Outlet context={nocData} />
+            </div>
           </main>
         </div>
       </div>

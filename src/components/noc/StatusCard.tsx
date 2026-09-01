@@ -7,7 +7,7 @@ interface StatusCardProps {
   value: string | number;
   subtitle?: string;
   icon: ReactNode;
-  variant?: 'default' | 'success' | 'warning' | 'critical';
+  variant?: 'default' | 'success' | 'warning' | 'critical' | 'info';
   className?: string;
 }
 
@@ -16,6 +16,7 @@ const variantStyles = {
   success: 'border-noc-ok/40 noc-glow',
   warning: 'border-noc-warning/40 noc-warning-glow',
   critical: 'border-noc-critical/50 noc-critical-glow',
+  info: 'border-info/40 bg-info/[0.06]',
 };
 
 const iconVariantStyles = {
@@ -23,6 +24,7 @@ const iconVariantStyles = {
   success: 'text-noc-ok',
   warning: 'text-noc-warning',
   critical: 'text-noc-critical',
+  info: 'text-info',
 };
 
 export function StatusCard({ title, value, subtitle, icon, variant = 'default', className }: StatusCardProps) {
@@ -31,17 +33,17 @@ export function StatusCard({ title, value, subtitle, icon, variant = 'default', 
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       className={cn(
-        'rounded-lg border bg-card p-4 lg:p-5 transition-all',
+        'group relative overflow-hidden rounded-xl border bg-card p-4 transition-all lg:p-5 2xl:p-6',
         variantStyles[variant],
         className
       )}
     >
-      <div className="flex items-center justify-between">
-        <p className="text-sm lg:text-base font-medium text-muted-foreground">{title}</p>
-        <span className={cn('h-6 w-6 lg:h-7 lg:w-7', iconVariantStyles[variant])}>{icon}</span>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-semibold leading-snug text-muted-foreground lg:text-base">{title}</p>
+        <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background/60', iconVariantStyles[variant])}>{icon}</span>
       </div>
-      <p className="mt-2 text-3xl lg:text-4xl font-bold font-mono tracking-tight text-foreground">{value}</p>
-      {subtitle && <p className="mt-1.5 text-sm text-muted-foreground">{subtitle}</p>}
+      <p className="mt-3 font-mono text-4xl font-bold tracking-tight text-foreground lg:text-5xl">{value}</p>
+      {subtitle && <p className="mt-2 text-xs leading-relaxed text-muted-foreground lg:text-sm">{subtitle}</p>}
     </motion.div>
   );
 }

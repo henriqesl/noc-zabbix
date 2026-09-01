@@ -22,7 +22,7 @@
     --secondary-foreground: 210 20% 80%;
 
     --muted: 220 14% 14%;
-    --muted-foreground: 215 15% 50%;
+    --muted-foreground: 215 15% 62%;
 
     --accent: 175 60% 30%;
     --accent-foreground: 175 80% 85%;
@@ -77,6 +77,18 @@
   body {
     @apply bg-background text-foreground antialiased;
     min-width: 320px;
+  }
+
+  @media (min-width: 1920px) {
+    html { font-size: 17px; }
+  }
+
+  @media (min-width: 2560px) {
+    html { font-size: 20px; }
+  }
+
+  @media (min-width: 3400px) {
+    html { font-size: 24px; }
   }
 }
 

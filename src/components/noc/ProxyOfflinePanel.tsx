@@ -19,7 +19,7 @@ export function ProxyOfflinePanel({ proxies, impactedDevices }: ProxyOfflinePane
           <div>
             <h2 className="text-lg font-semibold text-foreground">Proxies offline</h2>
             <p className="text-sm text-muted-foreground">
-              {impactedDevices.length} dispositivos podem estar indisponiveis por dependencia de proxy.
+              {impactedDevices.length} dispositivos impactados
             </p>
           </div>
         </div>

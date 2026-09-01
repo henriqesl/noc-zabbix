@@ -19,12 +19,14 @@ const statusStyles: Record<string, string> = {
   online: 'border-noc-ok/20 hover:border-noc-ok/40',
   warning: 'border-noc-warning/30 noc-warning-glow',
   offline: 'border-noc-critical/30 noc-critical-glow',
+  unknown: 'border-info/30 bg-info/5',
 };
 
 const statusDot: Record<string, string> = {
   online: 'bg-noc-ok',
   warning: 'bg-noc-warning',
   offline: 'bg-noc-critical',
+  unknown: 'bg-info',
 };
 
 export function DeviceCard({ device, index = 0 }: { device: Device; index?: number }) {
@@ -38,7 +40,7 @@ export function DeviceCard({ device, index = 0 }: { device: Device; index?: numb
       transition={{ delay: index * 0.02 }}
       className={cn(
         'relative flex min-h-[140px] flex-col overflow-hidden rounded-lg border bg-card p-4 transition-all',
-        statusStyles[device.status] || statusStyles.online,
+        statusStyles[device.status],
         device.status === 'offline' && 'min-h-[160px]'
       )}
     >
@@ -53,8 +55,8 @@ export function DeviceCard({ device, index = 0 }: { device: Device; index?: numb
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           <span className={cn('h-2 w-2 rounded-full', statusDot[device.status], device.status === 'offline' && 'animate-pulse-dot')} />
-          {device.status === 'offline' ? (
-            <WifiOff className="h-3.5 w-3.5 text-noc-critical" />
+          {device.status === 'offline' || device.status === 'unknown' ? (
+            <WifiOff className={cn('h-3.5 w-3.5', device.status === 'offline' ? 'text-noc-critical' : 'text-info')} />
           ) : (
             <Wifi className={cn('h-3.5 w-3.5', device.status === 'warning' ? 'text-noc-warning' : 'text-noc-ok')} />
           )}

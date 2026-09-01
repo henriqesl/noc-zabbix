@@ -1,150 +1,166 @@
 import { useMemo, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
-import { AlertTriangle, CheckCircle, Monitor, MonitorOff, ServerCrash } from 'lucide-react';
-import { CriticalBanner } from '@/components/noc/CriticalBanner';
+import { AlertTriangle, CheckCircle2, ChevronRight, EyeOff, MonitorCheck, Siren } from 'lucide-react';
 import { ClientFilterBar } from '@/components/noc/ClientFilterBar';
 import { GroupSummaryCard } from '@/components/noc/GroupSummaryCard';
 import { OfflineByClientPanel } from '@/components/noc/OfflineByClientPanel';
-import { ProxyOfflinePanel } from '@/components/noc/ProxyOfflinePanel';
 import { StatusCard } from '@/components/noc/StatusCard';
+import { VisibilityPanel } from '@/components/noc/VisibilityPanel';
 import { useNocData } from '@/hooks/use-noc-data';
+import { cn } from '@/lib/utils';
 import {
   filterClientGroups,
   getAlertSummary,
   groupByBucket,
+  groupOfflineDevicesByClient,
   isActiveNocGroup,
   type ClientGroupFilters,
 } from '@/domain/noc-selectors';
 
 const initialFilters: ClientGroupFilters = {
-  search: '',
-  status: 'all',
-  type: 'all',
-  bucket: 'all',
-  sortBy: 'criticality',
+  search: '', status: 'all', type: 'all', bucket: 'all', sortBy: 'criticality',
 };
 
-const sectionLabels = {
-  base: 'Base NOC',
-  cliente: 'Clientes Ativos',
-  outros: 'Outros',
-};
+const sectionLabels = { base: 'Operação Bionic', cliente: 'Clientes', outros: 'Outros' };
 
 export default function OverviewPage() {
   const data = useOutletContext<ReturnType<typeof useNocData>>();
   const [filters, setFilters] = useState<ClientGroupFilters>(initialFilters);
-
-  const { criticalAlerts, warningAlerts, totalActiveAlerts, suppressedAlerts } = getAlertSummary(data.alerts, data.devicesOfflineByProxy);
+  const alertSummary = getAlertSummary(data.alerts, data.visibilityAffectedDevices);
   const activeGroups = useMemo(() => data.groups.filter(isActiveNocGroup), [data.groups]);
   const filteredGroups = useMemo(() => filterClientGroups(data.groups, filters), [data.groups, filters]);
   const groupedFilteredGroups = useMemo(() => groupByBucket(filteredGroups), [filteredGroups]);
-  const hiddenInactive = data.groups.length - activeGroups.length;
+  const affectedClients = useMemo(
+    () => groupOfflineDevicesByClient(data.realOfflineDevices).length,
+    [data.realOfflineDevices]
+  );
 
   return (
-    <div className="space-y-6 lg:space-y-8">
-      <CriticalBanner
-        criticalCount={criticalAlerts.length}
-        offlineCount={data.realOfflineDevices.length}
-      />
+    <div className="space-y-7 2xl:space-y-9">
+      <section className="space-y-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">Visão geral</p>
+            <h1 className="mt-1 text-3xl font-bold tracking-tight text-foreground lg:text-4xl">Situação da operação</h1>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground lg:text-base">
+              Uma leitura simples do que está funcionando, do que precisa de ação e do que não pôde ser verificado.
+            </p>
+          </div>
+          <Link to="/alerts" className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
+            Abrir central de alertas <ChevronRight className="h-4 w-4" />
+          </Link>
+        </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5 lg:gap-4">
-        <StatusCard
-          title="Dispositivos Online"
-          value={data.onlineCount}
-          subtitle={`de ${data.totalCount} total`}
-          icon={<Monitor className="h-5 w-5" />}
-          variant="success"
+        <OperationalHeadline
+          error={Boolean(data.error)}
+          confirmed={data.realOfflineDevices.length}
+          affectedClients={affectedClients}
+          alerts={alertSummary.totalActiveAlerts}
+          unconfirmed={data.visibilityAffectedDevices.length}
         />
-        <StatusCard
-          title="Offline Real"
-          value={data.realOfflineDevices.length}
-          icon={<MonitorOff className="h-5 w-5" />}
-          variant={data.realOfflineDevices.length > 0 ? 'critical' : 'default'}
-        />
-        <StatusCard
-          title="Proxies Offline"
-          value={data.offlineProxies.length}
-          subtitle={`${data.devicesOfflineByProxy.length} dependentes`}
-          icon={<ServerCrash className="h-5 w-5" />}
-          variant={data.offlineProxies.length > 0 ? 'critical' : 'default'}
-        />
-        <StatusCard
-          title="Alertas Ativos"
-          value={totalActiveAlerts}
-          subtitle={`${criticalAlerts.length} criticos / ${suppressedAlerts.length} via proxy`}
-          icon={<AlertTriangle className="h-5 w-5" />}
-          variant={criticalAlerts.length > 0 ? 'critical' : warningAlerts.length > 0 ? 'warning' : 'default'}
-        />
-        <StatusCard
-          title="Saude Geral"
-          value={data.totalCount > 0 ? `${Math.round((data.onlineCount / data.totalCount) * 100)}%` : '-'}
-          icon={<CheckCircle className="h-5 w-5" />}
-          variant="success"
-        />
-      </div>
 
-      <ProxyOfflinePanel proxies={data.offlineProxies} impactedDevices={data.devicesOfflineByProxy} />
+        {data.isLoading && !data.error && (
+          <div className="rounded-xl border border-border bg-card/70 p-4 text-sm text-muted-foreground">Carregando a primeira leitura do Zabbix…</div>
+        )}
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:gap-4">
+          <StatusCard title="Precisa de ação" value={data.realOfflineDevices.length} subtitle={`${affectedClients} ambientes com falha confirmada`} icon={<Siren className="h-5 w-5" />} variant={data.realOfflineDevices.length ? 'critical' : 'default'} />
+          <StatusCard title="Alertas importantes" value={alertSummary.totalActiveAlerts} subtitle={`${alertSummary.criticalAlerts.length} são de alta severidade`} icon={<AlertTriangle className="h-5 w-5" />} variant={alertSummary.criticalAlerts.length ? 'critical' : alertSummary.warningAlerts.length ? 'warning' : 'default'} />
+          <StatusCard title="Não foi possível verificar" value={data.visibilityAffectedDevices.length} subtitle="estado desconhecido ou acesso via proxy" icon={<EyeOff className="h-5 w-5" />} variant={data.visibilityAffectedDevices.length ? 'info' : 'default'} />
+          <StatusCard title="Funcionando agora" value={data.onlineCount} subtitle={`de ${data.totalCount} equipamentos monitorados`} icon={<MonitorCheck className="h-5 w-5" />} variant="success" />
+        </div>
+      </section>
 
       <section className="space-y-4">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex items-end justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold text-foreground lg:text-2xl">Status por Cliente</h2>
-            <p className="text-sm text-muted-foreground">Grupos ativos marcados como [BASE] ou [CLIENTE]</p>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Prioridades</p>
+            <h2 className="mt-1 text-2xl font-semibold text-foreground">O que merece atenção agora</h2>
+          </div>
+          <span className="hidden rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground md:inline-flex">Vermelho = agir · Azul = verificar acesso</span>
+        </div>
+
+        {data.realOfflineDevices.length > 0 ? (
+          <OfflineByClientPanel title="Falhas confirmadas" description="Comece por estes ambientes. Clique em cada item para ver os equipamentos." devices={data.realOfflineDevices} />
+        ) : (
+          <div className="flex items-center gap-3 rounded-xl border border-noc-ok/30 bg-noc-ok/[0.06] p-5">
+            <CheckCircle2 className="h-6 w-6 text-noc-ok" />
+            <div><p className="font-semibold text-foreground">Nenhuma falha confirmada</p><p className="text-sm text-muted-foreground">Não há equipamentos exigindo ação imediata nesta leitura.</p></div>
+          </div>
+        )}
+
+        <VisibilityPanel groups={activeGroups} proxies={data.offlineProxies} affectedDevices={data.visibilityAffectedDevices} />
+      </section>
+
+      <section className="space-y-4 border-t border-border pt-7">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Detalhamento técnico</p>
+            <h2 className="mt-1 text-2xl font-semibold text-foreground">Ambientes monitorados</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Os ambientes mais críticos aparecem primeiro. Abra um cartão para investigar.</p>
           </div>
         </div>
 
-        <ClientFilterBar
-          filters={filters}
-          onFiltersChange={setFilters}
-          totalVisible={filteredGroups.length}
-          totalActive={activeGroups.length}
-          hiddenInactive={hiddenInactive}
-        />
+        <details className="group rounded-xl border border-border bg-card/60">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-foreground">
+            Buscar, filtrar ou ordenar ambientes
+            <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-90" />
+          </summary>
+          <div className="border-t border-border p-3">
+            <ClientFilterBar filters={filters} onFiltersChange={setFilters} totalVisible={filteredGroups.length} totalActive={activeGroups.length} hiddenInactive={data.groups.length - activeGroups.length} />
+          </div>
+        </details>
 
-        <div className="space-y-6">
+        <div className="space-y-7">
           {(['base', 'cliente', 'outros'] as const).map(bucket => {
             const groups = groupedFilteredGroups[bucket];
-            if (groups.length === 0) return null;
-
+            if (!groups.length) return null;
             return (
               <section key={bucket} className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                    {sectionLabels[bucket]}
-                  </h3>
-                  <span className="font-mono text-xs text-muted-foreground">{groups.length}</span>
+                  <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">{sectionLabels[bucket]}</h3>
+                  <span className="rounded-full bg-muted px-2.5 py-1 font-mono text-xs text-muted-foreground">{groups.length}</span>
                 </div>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3 min-[1800px]:grid-cols-4">
-                  {groups.map((group, i) => (
-                    <Link key={group.id} to={`/cliente/${group.id}`} className="block transition-transform hover:scale-[1.01]">
-                      <GroupSummaryCard group={group} index={i} />
-                    </Link>
-                  ))}
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3 min-[2400px]:grid-cols-4">
+                  {groups.map((group, index) => <Link key={group.id} to={`/cliente/${group.id}`} className="block rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"><GroupSummaryCard group={group} index={index} /></Link>)}
                 </div>
               </section>
             );
           })}
-
-          {filteredGroups.length === 0 && (
-            <div className="rounded-lg border border-dashed border-border bg-card/50 p-8 text-center text-sm text-muted-foreground">
-              Nenhum grupo ativo encontrado com os filtros atuais.
-            </div>
-          )}
+          {!filteredGroups.length && <div className="rounded-xl border border-dashed border-border bg-card/50 p-10 text-center text-sm text-muted-foreground">Nenhum ambiente encontrado com esses filtros.</div>}
         </div>
       </section>
+    </div>
+  );
+}
 
-      <OfflineByClientPanel
-        title="Dispositivos realmente offline"
-        description="Resumo por cliente. Expanda apenas quando precisar ver os hosts."
-        devices={data.realOfflineDevices}
-      />
+function OperationalHeadline({ error, confirmed, affectedClients, alerts, unconfirmed }: { error: boolean; confirmed: number; affectedClients: number; alerts: number; unconfirmed: number }) {
+  const state = error ? 'error' : confirmed > 0 ? 'critical' : alerts > 0 ? 'warning' : unconfirmed > 0 ? 'info' : 'healthy';
+  const content = {
+    error: { title: 'A leitura do Zabbix não foi atualizada', detail: 'Os dados na tela podem estar desatualizados. Verifique a conexão antes de tomar uma decisão.', icon: EyeOff },
+    critical: { title: `${affectedClients} ${affectedClients === 1 ? 'ambiente precisa' : 'ambientes precisam'} de atenção`, detail: `${confirmed} ${confirmed === 1 ? 'equipamento apresenta' : 'equipamentos apresentam'} falha confirmada. A equipe deve começar pelos itens em vermelho.`, icon: Siren },
+    warning: { title: 'Existem alertas para avaliação', detail: `Não há falha confirmada, mas ${alerts} ${alerts === 1 ? 'alerta precisa' : 'alertas precisam'} ser analisados.`, icon: AlertTriangle },
+    info: { title: 'Operação sem falhas confirmadas, com visão parcial', detail: `${unconfirmed} equipamentos não puderam ter o estado confirmado nesta leitura.`, icon: EyeOff },
+    healthy: { title: 'Tudo funcionando normalmente', detail: 'Nenhuma falha ou alerta importante foi identificado nesta leitura.', icon: CheckCircle2 },
+  }[state];
+  const Icon = content.icon;
 
-      <OfflineByClientPanel
-        title="Offline por indisponibilidade de proxy"
-        description="Nao entra no contador de alertas criticos; use como impacto operacional do proxy."
-        devices={data.devicesOfflineByProxy}
-        variant="muted"
-      />
+  return (
+    <div className={cn(
+      'flex flex-col gap-4 rounded-2xl border p-5 sm:flex-row sm:items-center lg:p-6',
+      state === 'critical' || state === 'error' ? 'border-noc-critical/45 bg-noc-critical/[0.08]' :
+      state === 'warning' ? 'border-noc-warning/40 bg-noc-warning/[0.07]' :
+      state === 'info' ? 'border-info/35 bg-info/[0.07]' : 'border-noc-ok/35 bg-noc-ok/[0.07]'
+    )}>
+      <span className={cn(
+        'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl lg:h-14 lg:w-14',
+        state === 'critical' || state === 'error' ? 'bg-noc-critical/15 text-noc-critical' :
+        state === 'warning' ? 'bg-noc-warning/15 text-noc-warning' : state === 'info' ? 'bg-info/15 text-info' : 'bg-noc-ok/15 text-noc-ok'
+      )}><Icon className="h-6 w-6 lg:h-7 lg:w-7" /></span>
+      <div>
+        <p className="text-xl font-bold text-foreground lg:text-2xl">{content.title}</p>
+        <p className="mt-1 max-w-4xl text-sm leading-relaxed text-muted-foreground lg:text-base">{content.detail}</p>
+      </div>
     </div>
   );
 }

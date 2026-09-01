@@ -37,19 +37,22 @@ export function cleanGroupName(name: string) {
 }
 
 export function getGroupHealth(group: ClientGroup): GroupHealth {
-  const online = group.devices.filter(device => device.status === 'online').length;
-  const offline = group.devices.filter(device => device.status === 'offline').length;
-  const warning = group.devices.filter(device => device.status === 'warning').length;
+  const online = group.devices.filter(device => getOperationalState(device) === 'functioning').length;
+  const offline = group.devices.filter(device => isRealOfflineDevice(device) || (isProxyDevice(device) && device.status === 'offline')).length;
+  const warning = group.devices.filter(device => getOperationalState(device) === 'warning').length;
+  const unknown = group.devices.filter(device => getOperationalState(device) === 'unconfirmed').length;
   const total = group.devices.length;
-  const healthPct = total > 0 ? Math.round((online / total) * 100) : 0;
+  const observable = total - unknown;
+  const healthPct = observable > 0 ? Math.round((online / observable) * 100) : 0;
 
   return {
     online,
     offline,
     warning,
+    unknown,
     total,
     healthPct,
-    status: total === 0 ? 'empty' : offline > 0 ? 'critical' : warning > 0 ? 'warning' : 'healthy',
+    status: total === 0 ? 'empty' : offline > 0 ? 'critical' : unknown > 0 ? 'degraded' : warning > 0 ? 'warning' : 'healthy',
   };
 }
 
@@ -59,17 +62,21 @@ export function getNocSummary(groups: ClientGroup[]) {
   const offlineProxies = proxies.filter(device => device.status === 'offline');
   const devicesOfflineByProxy = allDevices.filter(isOfflineByProxy);
   const realOfflineDevices = allDevices.filter(isRealOfflineDevice);
+  const unknownDevices = allDevices.filter(device => getOperationalState(device) === 'unconfirmed');
+  const visibilityAffectedDevices = uniqueDevices([...devicesOfflineByProxy, ...unknownDevices]);
 
   return {
     allDevices,
-    onlineCount: allDevices.filter(device => device.status === 'online').length,
+    onlineCount: allDevices.filter(device => getOperationalState(device) === 'functioning').length,
     offlineCount: realOfflineDevices.length + offlineProxies.length,
     rawOfflineCount: allDevices.filter(device => device.status === 'offline').length,
     realOfflineDevices,
     devicesOfflineByProxy,
+    unknownDevices,
+    visibilityAffectedDevices,
     proxies,
     offlineProxies,
-    warningCount: allDevices.filter(device => device.status === 'warning').length,
+    warningCount: allDevices.filter(device => getOperationalState(device) === 'warning').length,
     totalCount: allDevices.length,
   };
 }
@@ -95,11 +102,29 @@ export function isProxyDevice(device: Device) {
 }
 
 export function isOfflineByProxy(device: Device) {
-  return device.status === 'offline' && !isProxyDevice(device) && device.offlineReason === 'proxy';
+  if (isProxyDevice(device)) return false;
+  if (device.classification) {
+    return device.classification.operationalState === 'unconfirmed' && (
+      device.classification.evidence.source === 'proxy' ||
+      device.classification.evidence.source === 'restriction'
+    );
+  }
+  return device.status === 'offline' && device.offlineReason === 'proxy';
 }
 
 export function isRealOfflineDevice(device: Device) {
-  return device.status === 'offline' && !isProxyDevice(device) && device.offlineReason !== 'proxy';
+  if (isProxyDevice(device)) return false;
+  return device.classification
+    ? device.classification.operationalState === 'confirmed-failure'
+    : device.status === 'offline' && device.offlineReason === 'host';
+}
+
+export function getOperationalState(device: Device) {
+  if (device.classification) return device.classification.operationalState;
+  if (device.status === 'online') return 'functioning' as const;
+  if (device.status === 'warning') return 'warning' as const;
+  if (device.status === 'offline' && device.offlineReason === 'host') return 'confirmed-failure' as const;
+  return 'unconfirmed' as const;
 }
 
 export function groupOfflineDevicesByClient(devices: Device[]) {
@@ -134,14 +159,14 @@ export function getNetworkDevicesByClient(devices: Device[]) {
     const existing = acc.find(item => item.groupName === device.group);
     if (existing) {
       existing.devices.push(device);
-      existing.offline += device.status === 'offline' ? 1 : 0;
-      existing.warning += device.status === 'warning' ? 1 : 0;
+      existing.offline += isRealOfflineDevice(device) ? 1 : 0;
+      existing.warning += getOperationalState(device) === 'warning' ? 1 : 0;
     } else {
       acc.push({
         groupName: device.group,
         devices: [device],
-        offline: device.status === 'offline' ? 1 : 0,
-        warning: device.status === 'warning' ? 1 : 0,
+        offline: isRealOfflineDevice(device) ? 1 : 0,
+        warning: getOperationalState(device) === 'warning' ? 1 : 0,
       });
     }
 
@@ -182,17 +207,21 @@ export function isWithinPeriod(timestamp: string, period: 'all' | '1h' | '6h' | 
 
 export function getCameraSummary(devices: Device[]) {
   const cameras = devices.filter(device => device.type === 'camera');
-  const offline = cameras.filter(device => device.status === 'offline');
+  const offline = cameras.filter(isRealOfflineDevice);
   const offlineByProxy = cameras.filter(isOfflineByProxy);
-  const realOffline = offline.filter(device => !isOfflineByProxy(device));
+  const realOffline = offline;
+  const unknown = cameras.filter(device => getOperationalState(device) === 'unconfirmed');
+  const unconfirmed = uniqueDevices([...offlineByProxy, ...unknown]);
 
   return {
     cameras,
     offline,
     offlineByProxy,
     realOffline,
-    onlineCount: cameras.filter(device => device.status === 'online').length,
-    warningCount: cameras.filter(device => device.status === 'warning').length,
+    unknown,
+    unconfirmed,
+    onlineCount: cameras.filter(device => getOperationalState(device) === 'functioning').length,
+    warningCount: cameras.filter(device => getOperationalState(device) === 'warning').length,
   };
 }
 
@@ -264,4 +293,8 @@ function compareGroups(a: ClientGroup, b: ClientGroup, sortBy: ClientSortKey) {
   if (sortBy === 'devices') return healthB.total - healthA.total;
 
   return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+}
+
+function uniqueDevices(devices: Device[]) {
+  return Array.from(new Map(devices.map(device => [device.id, device])).values());
 }

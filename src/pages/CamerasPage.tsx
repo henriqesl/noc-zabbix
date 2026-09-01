@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Camera, MonitorCheck, WifiOff } from 'lucide-react';
+import { Camera, EyeOff, MonitorCheck, WifiOff } from 'lucide-react';
 import { DeviceCard } from '@/components/noc/DeviceCard';
 import { DeviceFilterBar, type DeviceFilters } from '@/components/noc/DeviceFilterBar';
 import { OfflineByClientPanel } from '@/components/noc/OfflineByClientPanel';
@@ -39,51 +39,52 @@ export default function CamerasPage() {
     <div className="space-y-6 lg:space-y-8">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h1 className="mb-1 flex items-center gap-2 text-2xl font-bold">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">Monitoramento visual</p>
+          <h1 className="mt-1 flex items-center gap-2 text-3xl font-bold tracking-tight lg:text-4xl">
             <Camera className="h-6 w-6 text-primary" />
-            Cameras
+            Câmeras
           </h1>
-          <p className="text-sm text-muted-foreground">
-            Inventario operacional para localizar cameras offline e diferenciar queda real de impacto por proxy.
-          </p>
+          <p className="mt-2 text-sm text-muted-foreground lg:text-base">Visão consolidada das câmeras por cliente e situação.</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5 lg:gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5 lg:gap-4">
         <StatusCard title="Total" value={summary.cameras.length} icon={<Camera className="h-5 w-5" />} />
-        <StatusCard title="Online" value={summary.onlineCount} icon={<MonitorCheck className="h-5 w-5" />} variant="success" />
-        <StatusCard title="Alerta" value={summary.warningCount} icon={<Camera className="h-5 w-5" />} variant={summary.warningCount > 0 ? 'warning' : 'default'} />
+        <StatusCard title="Funcionando" value={summary.onlineCount} icon={<MonitorCheck className="h-5 w-5" />} variant="success" />
+        <StatusCard title="Em alerta" value={summary.warningCount} icon={<Camera className="h-5 w-5" />} variant={summary.warningCount > 0 ? 'warning' : 'default'} />
         <StatusCard
-          title="Offline Real"
+          title="Falha confirmada"
           value={summary.realOffline.length}
           icon={<WifiOff className="h-5 w-5" />}
           variant={summary.realOffline.length > 0 ? 'critical' : 'default'}
         />
-        <StatusCard
-          title="Via Proxy"
-          value={summary.offlineByProxy.length}
-          icon={<WifiOff className="h-5 w-5" />}
-          variant={summary.offlineByProxy.length > 0 ? 'warning' : 'default'}
-        />
+        <StatusCard title="Sem confirmação" value={summary.unconfirmed.length} subtitle="não significa câmera offline" icon={<EyeOff className="h-5 w-5" />} variant={summary.unconfirmed.length ? 'info' : 'default'} />
       </div>
 
+      {summary.unconfirmed.length > 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-info/30 bg-info/5 px-4 py-3 text-sm text-muted-foreground">
+          <EyeOff className="h-4 w-4 text-info" />
+          {summary.unconfirmed.length} câmeras não puderam ter o estado confirmado. Isso pode ocorrer por restrição de acesso ou proxy sem contato.
+        </div>
+      )}
+
       <OfflineByClientPanel
-        title="Cameras realmente offline"
-        description="Agrupadas por cliente para acionamento operacional."
+        title="Falhas confirmadas de câmera"
+        description="Equipamentos com evidência de indisponibilidade."
         devices={summary.realOffline}
       />
 
       <OfflineByClientPanel
-        title="Cameras impactadas por proxy"
-        description="Nao conte como falha individual da camera antes de recuperar o proxy."
-        devices={summary.offlineByProxy}
+        title="Câmeras sem confirmação"
+        description="Verifique primeiro o acesso ou o proxy antes de acionar a câmera individualmente."
+        devices={summary.unconfirmed}
         variant="muted"
       />
 
       <section className="space-y-4">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Inventario de Cameras</h2>
-          <p className="text-sm text-muted-foreground">Use busca e filtros para localizar rapidamente uma camera ou cliente.</p>
+          <h2 className="text-2xl font-semibold text-foreground">Inventário de câmeras</h2>
+          <p className="text-sm text-muted-foreground">Detalhes técnicos, busca e filtros por cliente.</p>
         </div>
 
         <DeviceFilterBar
@@ -112,7 +113,7 @@ export default function CamerasPage() {
         </div>
 
         {filteredCameras.length > 0 ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 min-[1800px]:grid-cols-5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 min-[1800px]:grid-cols-5 min-[2800px]:grid-cols-6">
             {filteredCameras.map((camera, i) => (
               <DeviceCard key={camera.id} device={camera} index={i} />
             ))}

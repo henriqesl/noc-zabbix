@@ -54,6 +54,16 @@ npm run build
 
 ## Project Conventions
 
+### Display and audience
+
+The interface is designed for wall monitors and operation-room displays:
+
+- Full HD is the baseline layout;
+- typography and spacing scale progressively at 2560 px and 3400 px;
+- the first viewport prioritizes a plain-language operational verdict and actionable failures;
+- technical filters and per-device details remain available below the executive summary;
+- colors always appear with text labels, so status does not depend on color alone.
+
 ### Active Groups
 
 The main dashboard only treats Zabbix groups as active when their names include one of these markers:
@@ -63,15 +73,15 @@ The main dashboard only treats Zabbix groups as active when their names include 
 
 This allows groups to exist in Zabbix without appearing in the main dashboard before they are operationally active.
 
-### Proxies
+### Estados operacionais
 
-The dashboard separates:
+O dashboard separa o que o Zabbix consegue afirmar do que depende de conectividade:
 
-- offline proxies;
-- truly offline devices;
-- devices offline because their proxy is unavailable.
+- `Falha confirmada`: host indisponivel por trigger/estado do proprio host;
+- `Sem confirmacao`: coleta desconhecida ou host dependente de proxy sem contato;
+- `Respondendo`: host com disponibilidade confirmada pelo Zabbix.
 
-Devices affected by an offline proxy do not increase the main critical-alert count. They are shown in a separate proxy-impact section.
+Hosts sem confirmacao nao aumentam a contagem principal de incidentes ou alertas acionaveis. Terphane e Arlanxeo aparecem no painel de visibilidade como restricoes operacionais conhecidas da TI local.
 
 ### Alerts
 
@@ -87,11 +97,11 @@ Available filters:
 
 ### Core Health
 
-The core page separates servers, proxies, and network links by client. The current charts use a local simulated series in `generateMockCoreSeries()` and are structured to be replaced by real metrics later.
+The core page separates servers, proxies, and network links by client. It only displays values returned or derived from the current Zabbix collection; simulated charts are not shown.
 
 ### Cameras
 
-The cameras page works as an operational inventory. It separates truly offline cameras from cameras impacted by proxy outages.
+The cameras page works as an operational inventory. It separates confirmed camera failures from cameras without a reliable collection state.
 
 ## Security
 

@@ -1,8 +1,11 @@
 import { fetchHosts, fetchMetrics, fetchProxies, fetchTriggers, type ZabbixProxy } from './zabbix-api';
-import type { Alert, ClientGroup, DeviceStatus, DeviceType } from '@/domain/noc';
+import type { Alert, ClientGroup, DeviceType } from '@/domain/noc';
+import { classifyDevice, classifyProxy, isConfirmedFailureTrigger, toLegacyDeviceStatus } from '@/domain/noc-classifier';
+import { getEnvironmentRestriction } from '@/domain/noc-restrictions';
 
 export async function fetchNocData() {
   try {
+    const collectedAt = Date.now();
     const [zabbixHosts, zabbixTriggers, zabbixMetrics] = await Promise.all([
       fetchHosts(),
       fetchTriggers(),
@@ -10,9 +13,11 @@ export async function fetchNocData() {
     ]);
 
     let zabbixProxies: ZabbixProxy[] = [];
+    let proxyDataAvailable = true;
     try {
       zabbixProxies = await fetchProxies();
     } catch (proxyError) {
+      proxyDataAvailable = false;
       console.warn('[NOC Service] Falha ao procurar proxies.', proxyError);
     }
 
@@ -35,24 +40,21 @@ export async function fetchNocData() {
       }
     });
 
-    const currentTime = Math.floor(Date.now() / 1000);
-    const proxyStatusMap = new Map<string, { name: string; status: DeviceStatus; offlineSince?: number }>();
+    const currentTime = Math.floor(collectedAt / 1000);
+    const proxyStatusMap = new Map<string, { name: string; lastAccess: number }>();
 
     zabbixProxies.forEach(proxy => {
       const lastAccess = Number(proxy.lastaccess);
       if (lastAccess === 0 || String(proxy.status) === '3') return;
 
       const cleanName = formatProxyName(proxy.name || proxy.host || 'Proxy Zabbix');
-      const status: DeviceStatus = currentTime - lastAccess > 180 ? 'offline' : 'online';
-
       proxyStatusMap.set(proxy.proxyid, {
         name: cleanName ? `${cleanName} - Proxy` : 'Zabbix - Proxy',
-        status,
-        offlineSince: status === 'offline' && lastAccess > 0 ? lastAccess * 1000 : undefined,
+        lastAccess,
       });
     });
 
-    const criticalHostIds = new Set<string>();
+    const problemsByHost = new Map<string, { confirmedFailure: boolean; active: boolean; observedAt: number }>();
 
     const alerts: Alert[] = zabbixTriggers.map(trigger => {
       const priority = Number(trigger.priority);
@@ -61,8 +63,14 @@ export async function fetchNocData() {
       const hostName = host?.name || host?.host || 'Desconhecido';
       const groupName = trigger.groups?.[0]?.name || 'Desconhecido';
 
-      if (isCritical && host?.hostid) {
-        criticalHostIds.add(host.hostid);
+      if (host?.hostid) {
+        const observedAt = Number(trigger.lastchange) * 1000;
+        const current = problemsByHost.get(host.hostid) ?? { confirmedFailure: false, active: false, observedAt: 0 };
+        problemsByHost.set(host.hostid, {
+          confirmedFailure: current.confirmedFailure || isConfirmedFailureTrigger(trigger.description),
+          active: true,
+          observedAt: Math.max(current.observedAt, observedAt),
+        });
       }
 
       return {
@@ -85,39 +93,39 @@ export async function fetchNocData() {
       if (hostNameLower.includes('proxy')) return;
 
       const zabbixGroup = host.groups?.[0] || { groupid: 'unknown', name: 'Outros' };
+      const restriction = getEnvironmentRestriction(zabbixGroup.name);
 
       if (!groupsMap.has(zabbixGroup.groupid)) {
         groupsMap.set(zabbixGroup.groupid, {
           id: zabbixGroup.groupid,
           name: zabbixGroup.name,
           devices: [],
+          restriction,
         });
       }
 
-      const agentAvailable = host.available === '1';
-      const hasCriticalProblem = criticalHostIds.has(host.hostid);
       const hostProxyId = host.proxyid || host.proxy_hostid;
       const hostProxy = hostProxyId ? proxyStatusMap.get(hostProxyId) : undefined;
-      const isBehindOfflineProxy = hostProxy?.status === 'offline';
-
-      let deviceStatus: DeviceStatus = 'online';
-      let offlineReason: 'host' | 'proxy' | 'unknown' | undefined;
-
-      if (hostNameLower.includes('zabbix server') || hostNameLower.includes('amazon zabbix')) {
-        deviceStatus = 'online';
-      } else if (isBehindOfflineProxy) {
-        deviceStatus = 'offline';
-      } else if (hasCriticalProblem) {
-        deviceStatus = 'offline';
-      } else if (agentAvailable || host.available === '0') {
-        deviceStatus = 'online';
-      } else if (host.available === '2') {
-        deviceStatus = 'offline';
-      }
-
-      if (deviceStatus === 'offline') {
-        offlineReason = isBehindOfflineProxy ? 'proxy' : hasCriticalProblem ? 'host' : 'unknown';
-      }
+      const hostProblems = problemsByHost.get(host.hostid);
+      const classification = classifyDevice({
+        available: host.available,
+        hasConfirmedFailure: Boolean(hostProblems?.confirmedFailure),
+        hasActiveProblem: Boolean(hostProblems?.active),
+        collectedAt,
+        problemObservedAt: hostProblems?.observedAt,
+        proxyId: hostProxyId,
+        proxyLastAccess: hostProxy?.lastAccess,
+        proxyDataAvailable: !hostProxyId || (proxyDataAvailable && Boolean(hostProxy)),
+        restriction,
+      });
+      const deviceStatus = toLegacyDeviceStatus(classification);
+      const offlineReason = classification.operationalState === 'confirmed-failure'
+        ? 'host'
+        : classification.evidence.source === 'proxy' || classification.evidence.source === 'restriction'
+          ? 'proxy'
+          : classification.operationalState === 'unconfirmed'
+            ? 'unknown'
+            : undefined;
 
       const groupNameLower = zabbixGroup.name.toLowerCase();
       const deviceType = detectDeviceType(hostNameLower, groupNameLower);
@@ -128,6 +136,7 @@ export async function fetchNocData() {
         name: hostName,
         ip: host.host,
         status: deviceStatus,
+        classification,
         offlineReason,
         proxyId: hostProxyId,
         proxyName: hostProxy?.name,
@@ -135,6 +144,7 @@ export async function fetchNocData() {
         type: deviceType,
         latency: hostMetrics.latency,
         uptime: hostMetrics.uptime,
+        restriction,
       });
     });
 
@@ -149,8 +159,9 @@ export async function fetchNocData() {
         if (cleanName.toLowerCase().includes('gestamp')) return;
 
         const finalProxyName = cleanName ? `${cleanName} - Proxy` : 'Zabbix - Proxy';
-        const isOffline = currentTime - lastAccess > 180;
-        const proxyStatus: DeviceStatus = isOffline ? 'offline' : 'online';
+        const classification = classifyProxy(lastAccess, collectedAt);
+        const proxyStatus = toLegacyDeviceStatus(classification);
+        const isOffline = classification.operationalState === 'confirmed-failure';
         const secondsSinceAccess = currentTime - lastAccess;
         const lastSeen = secondsSinceAccess < 60 ? 'Agora' : `${Math.floor(secondsSinceAccess / 60)}m atras`;
 
@@ -163,6 +174,7 @@ export async function fetchNocData() {
           name: finalProxyName,
           ip: 'API Nativa',
           status: proxyStatus,
+          classification,
           isProxy: true,
           proxyId: proxy.proxyid,
           offlineReason: proxyStatus === 'offline' ? 'host' : undefined,
@@ -184,10 +196,14 @@ export async function fetchNocData() {
       a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
     );
 
-    return { groups: sortedGroups, alerts };
+    return {
+      groups: sortedGroups,
+      alerts,
+      snapshot: { collectedAt: new Date(collectedAt).toISOString(), freshness: 'current' as const },
+    };
   } catch (error) {
     console.error('[NOC Service] Erro ao mapear dados:', error);
-    return { groups: [], alerts: [] };
+    throw error;
   }
 }
 
