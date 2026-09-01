@@ -245,7 +245,7 @@ export function filterClientGroups(groups: ClientGroup[], filters: ClientGroupFi
 
       const groupMatch = normalize(group.name).includes(search);
       const deviceMatch = group.devices.some(device =>
-        normalize(`${device.name} ${device.ip} ${device.type}`).includes(search)
+        normalize(`${device.name} ${device.ip} ${device.type} ${device.proxyName ?? ''}`).includes(search)
       );
 
       return groupMatch || deviceMatch;
@@ -259,7 +259,7 @@ export function filterDevices(devices: Device[], filters: Pick<ClientGroupFilter
   return devices.filter(device => {
     const matchesStatus = filters.status === 'all' || device.status === filters.status;
     const matchesType = filters.type === 'all' || device.type === filters.type;
-    const matchesSearch = !search || normalize(`${device.name} ${device.ip} ${device.group} ${device.type}`).includes(search);
+    const matchesSearch = !search || normalize(`${device.name} ${device.ip} ${device.group} ${device.type} ${device.proxyName ?? ''}`).includes(search);
 
     return matchesStatus && matchesType && matchesSearch;
   });

@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Link, useOutletContext, useParams } from 'react-router-dom';
+import { useMemo } from 'react';
+import { Link, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion } from 'framer-motion';
@@ -10,7 +10,6 @@ import { DeviceCard } from '@/components/noc/DeviceCard';
 import { DeviceFilterBar, type DeviceFilters } from '@/components/noc/DeviceFilterBar';
 import { StatusCard } from '@/components/noc/StatusCard';
 import { useNocData } from '@/hooks/use-noc-data';
-import { cn } from '@/lib/utils';
 import { cleanGroupName, filterDevices, getAlertSummary, isOfflineByProxy, isRealOfflineDevice } from '@/domain/noc-selectors';
 import type { Device, DeviceType } from '@/domain/noc';
 
@@ -22,18 +21,24 @@ const typeIcon: Record<DeviceType, typeof Server> = {
   firewall: Server,
 };
 
-const initialDeviceFilters: DeviceFilters = {
-  search: '',
-  status: 'all',
-  type: 'all',
-};
-
 const emptyDevices: Device[] = [];
 
 export default function ClientDetailPage() {
   const data = useOutletContext<ReturnType<typeof useNocData>>();
   const { clientId } = useParams();
-  const [deviceFilters, setDeviceFilters] = useState<DeviceFilters>(initialDeviceFilters);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const deviceFilters = useMemo<DeviceFilters>(() => ({
+    search: searchParams.get('busca') ?? '',
+    status: readOption(searchParams.get('estado'), ['all', 'online', 'offline', 'warning', 'unknown'], 'all'),
+    type: readOption(searchParams.get('tipo'), ['all', 'server', 'camera', 'switch', 'router', 'firewall'], 'all'),
+  }), [searchParams]);
+  const setDeviceFilters = (nextFilters: DeviceFilters) => {
+    const next = new URLSearchParams(searchParams);
+    setOrDelete(next, 'busca', nextFilters.search);
+    setOrDelete(next, 'estado', nextFilters.status, 'all');
+    setOrDelete(next, 'tipo', nextFilters.type, 'all');
+    setSearchParams(next, { replace: true });
+  };
 
   const group = data.groups.find(item => item.id === clientId);
   const devices = group?.devices ?? emptyDevices;
@@ -95,7 +100,7 @@ export default function ClientDetailPage() {
           value={clientAlerts.length}
           subtitle={`${criticalAlerts.length} criticos`}
           icon={<AlertTriangle className="h-5 w-5" />}
-          variant={criticalAlerts.length > 0 ? 'critical' : clientAlerts.length > 0 ? 'warning' : 'default'}
+          variant={clientAlerts.length > 0 ? 'warning' : 'default'}
         />
       </div>
 
@@ -148,7 +153,7 @@ export default function ClientDetailPage() {
       <section className="space-y-4">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <h2 className="text-xl font-semibold text-foreground">Todos os Dispositivos</h2>
-          <span className={cn('font-mono text-xs', filteredDevices.length === 0 ? 'text-noc-critical' : 'text-muted-foreground')}>
+          <span className="font-mono text-xs text-muted-foreground">
             {filteredDevices.length} visiveis
           </span>
         </div>
@@ -174,4 +179,13 @@ export default function ClientDetailPage() {
       </section>
     </div>
   );
+}
+
+function readOption<T extends string>(value: string | null, options: readonly T[], fallback: T): T {
+  return value && options.includes(value as T) ? value as T : fallback;
+}
+
+function setOrDelete(params: URLSearchParams, key: string, value: string, defaultValue = '') {
+  if (!value || value === defaultValue) params.delete(key);
+  else params.set(key, value);
 }

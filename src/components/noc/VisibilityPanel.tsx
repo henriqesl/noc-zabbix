@@ -1,4 +1,4 @@
-import { EyeOff, Server, ShieldAlert } from 'lucide-react';
+import { CheckCircle2, EyeOff, Server, ShieldAlert } from 'lucide-react';
 import type { ClientGroup, Device } from '@/domain/noc';
 import { cleanGroupName } from '@/domain/noc-selectors';
 
@@ -26,6 +26,15 @@ export function VisibilityPanel({ groups, proxies, affectedDevices }: Visibility
         affected,
       };
     });
+
+  if (affectedDevices.length === 0 && proxies.length === 0 && restrictedClients.length === 0) {
+    return (
+      <section className="flex items-center gap-3 rounded-xl border border-noc-ok/25 bg-noc-ok/[0.04] px-4 py-3">
+        <CheckCircle2 className="h-4 w-4 shrink-0 text-noc-ok" />
+        <div><h2 className="text-sm font-semibold text-foreground">Visibilidade completa</h2><p className="text-xs text-muted-foreground">Todos os equipamentos desta leitura puderam ser verificados.</p></div>
+      </section>
+    );
+  }
 
   return (
     <section className="overflow-hidden rounded-xl border border-info/30 bg-info/5">

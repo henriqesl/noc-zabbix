@@ -1,36 +1,30 @@
-import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { NocSidebar } from '@/components/noc/NocSidebar';
 import { NocHeader } from '@/components/noc/NocHeader';
 import { useNocData } from '@/hooks/use-noc-data';
+import { useDisplayMode } from '@/hooks/use-display-mode';
 import { Outlet } from 'react-router-dom';
 
 export function NocLayout() {
   const nocData = useNocData();
+  const display = useDisplayMode();
 
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full noc-grid-bg">
-        <NocSidebar />
-        <div className="flex-1 flex flex-col min-w-0">
-          <NocHeader
-            lastUpdate={nocData.lastUpdate}
-            isRefreshing={nocData.isRefreshing}
-            onRefresh={nocData.refresh}
-            onlineCount={nocData.onlineCount}
-            confirmedCount={nocData.realOfflineDevices.length}
-            unconfirmedCount={nocData.visibilityAffectedDevices.length}
-            error={nocData.error}
-          />
-          <div className="flex items-center gap-2 border-b border-border bg-card/30 px-4 py-2 lg:hidden">
-            <SidebarTrigger />
-          </div>
-          <main className="flex-1 overflow-auto p-4 sm:p-5 lg:p-7 xl:p-8 2xl:p-10">
-            <div className="mx-auto w-full max-w-[220rem]">
-              <Outlet context={nocData} />
-            </div>
-          </main>
+    <div className="min-h-screen w-full bg-background" data-mode={display.mode}>
+      <NocHeader
+        lastUpdate={nocData.lastUpdate}
+        isRefreshing={nocData.isRefreshing}
+        onRefresh={nocData.refresh}
+        onlineCount={nocData.onlineCount}
+        confirmedCount={nocData.realOfflineDevices.length}
+        unconfirmedCount={nocData.visibilityAffectedDevices.length}
+        error={nocData.error}
+        mode={display.mode}
+        onModeChange={display.setMode}
+      />
+      <main className="noc-content min-w-0">
+        <div className="mx-auto w-full max-w-[220rem]">
+          <Outlet context={nocData} />
         </div>
-      </div>
-    </SidebarProvider>
+      </main>
+    </div>
   );
 }

@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Link, useOutletContext } from 'react-router-dom';
+import { useMemo } from 'react';
+import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, CheckCircle2, ChevronRight, EyeOff, MonitorCheck, Siren } from 'lucide-react';
 import { ClientFilterBar } from '@/components/noc/ClientFilterBar';
 import { GroupSummaryCard } from '@/components/noc/GroupSummaryCard';
@@ -17,15 +17,27 @@ import {
   type ClientGroupFilters,
 } from '@/domain/noc-selectors';
 
-const initialFilters: ClientGroupFilters = {
-  search: '', status: 'all', type: 'all', bucket: 'all', sortBy: 'criticality',
-};
-
 const sectionLabels = { base: 'Operação Bionic', cliente: 'Clientes', outros: 'Outros' };
 
 export default function OverviewPage() {
   const data = useOutletContext<ReturnType<typeof useNocData>>();
-  const [filters, setFilters] = useState<ClientGroupFilters>(initialFilters);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters = useMemo<ClientGroupFilters>(() => ({
+    search: searchParams.get('busca') ?? '',
+    status: readOption(searchParams.get('estado'), ['all', 'online', 'offline', 'warning', 'unknown'], 'all'),
+    type: readOption(searchParams.get('tipo'), ['all', 'server', 'camera', 'switch', 'router', 'firewall'], 'all'),
+    bucket: readOption(searchParams.get('grupo'), ['all', 'base', 'cliente'], 'all'),
+    sortBy: readOption(searchParams.get('ordem'), ['criticality', 'name', 'health', 'offline', 'devices'], 'criticality'),
+  }), [searchParams]);
+  const setFilters = (nextFilters: ClientGroupFilters) => {
+    const next = new URLSearchParams(searchParams);
+    setOrDelete(next, 'busca', nextFilters.search);
+    setOrDelete(next, 'estado', nextFilters.status, 'all');
+    setOrDelete(next, 'tipo', nextFilters.type, 'all');
+    setOrDelete(next, 'grupo', nextFilters.bucket, 'all');
+    setOrDelete(next, 'ordem', nextFilters.sortBy, 'criticality');
+    setSearchParams(next, { replace: true });
+  };
   const alertSummary = getAlertSummary(data.alerts, data.visibilityAffectedDevices);
   const activeGroups = useMemo(() => data.groups.filter(isActiveNocGroup), [data.groups]);
   const filteredGroups = useMemo(() => filterClientGroups(data.groups, filters), [data.groups, filters]);
@@ -65,7 +77,7 @@ export default function OverviewPage() {
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:gap-4">
           <StatusCard title="Precisa de ação" value={data.realOfflineDevices.length} subtitle={`${affectedClients} ambientes com falha confirmada`} icon={<Siren className="h-5 w-5" />} variant={data.realOfflineDevices.length ? 'critical' : 'default'} />
-          <StatusCard title="Alertas importantes" value={alertSummary.totalActiveAlerts} subtitle={`${alertSummary.criticalAlerts.length} são de alta severidade`} icon={<AlertTriangle className="h-5 w-5" />} variant={alertSummary.criticalAlerts.length ? 'critical' : alertSummary.warningAlerts.length ? 'warning' : 'default'} />
+          <StatusCard title="Alertas importantes" value={alertSummary.totalActiveAlerts} subtitle={`${alertSummary.criticalAlerts.length} são de alta severidade`} icon={<AlertTriangle className="h-5 w-5" />} variant={alertSummary.totalActiveAlerts ? 'warning' : 'default'} />
           <StatusCard title="Não foi possível verificar" value={data.visibilityAffectedDevices.length} subtitle="estado desconhecido ou acesso via proxy" icon={<EyeOff className="h-5 w-5" />} variant={data.visibilityAffectedDevices.length ? 'info' : 'default'} />
           <StatusCard title="Funcionando agora" value={data.onlineCount} subtitle={`de ${data.totalCount} equipamentos monitorados`} icon={<MonitorCheck className="h-5 w-5" />} variant="success" />
         </div>
@@ -92,7 +104,7 @@ export default function OverviewPage() {
         <VisibilityPanel groups={activeGroups} proxies={data.offlineProxies} affectedDevices={data.visibilityAffectedDevices} />
       </section>
 
-      <section className="space-y-4 border-t border-border pt-7">
+      <section id="ambientes" className="scroll-mt-24 space-y-4 border-t border-border pt-7">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Detalhamento técnico</p>
@@ -134,6 +146,15 @@ export default function OverviewPage() {
   );
 }
 
+function readOption<T extends string>(value: string | null, options: readonly T[], fallback: T): T {
+  return value && options.includes(value as T) ? value as T : fallback;
+}
+
+function setOrDelete(params: URLSearchParams, key: string, value: string, defaultValue = '') {
+  if (!value || value === defaultValue) params.delete(key);
+  else params.set(key, value);
+}
+
 function OperationalHeadline({ error, confirmed, affectedClients, alerts, unconfirmed }: { error: boolean; confirmed: number; affectedClients: number; alerts: number; unconfirmed: number }) {
   const state = error ? 'error' : confirmed > 0 ? 'critical' : alerts > 0 ? 'warning' : unconfirmed > 0 ? 'info' : 'healthy';
   const content = {
@@ -148,14 +169,14 @@ function OperationalHeadline({ error, confirmed, affectedClients, alerts, unconf
   return (
     <div className={cn(
       'flex flex-col gap-4 rounded-2xl border p-5 sm:flex-row sm:items-center lg:p-6',
-      state === 'critical' || state === 'error' ? 'border-noc-critical/45 bg-noc-critical/[0.08]' :
+      state === 'critical' ? 'border-noc-critical/45 bg-noc-critical/[0.08]' :
       state === 'warning' ? 'border-noc-warning/40 bg-noc-warning/[0.07]' :
-      state === 'info' ? 'border-info/35 bg-info/[0.07]' : 'border-noc-ok/35 bg-noc-ok/[0.07]'
+      state === 'info' || state === 'error' ? 'border-info/35 bg-info/[0.07]' : 'border-noc-ok/35 bg-noc-ok/[0.07]'
     )}>
       <span className={cn(
         'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl lg:h-14 lg:w-14',
-        state === 'critical' || state === 'error' ? 'bg-noc-critical/15 text-noc-critical' :
-        state === 'warning' ? 'bg-noc-warning/15 text-noc-warning' : state === 'info' ? 'bg-info/15 text-info' : 'bg-noc-ok/15 text-noc-ok'
+        state === 'critical' ? 'bg-noc-critical/15 text-noc-critical' :
+        state === 'warning' ? 'bg-noc-warning/15 text-noc-warning' : state === 'info' || state === 'error' ? 'bg-info/15 text-info' : 'bg-noc-ok/15 text-noc-ok'
       )}><Icon className="h-6 w-6 lg:h-7 lg:w-7" /></span>
       <div>
         <p className="text-xl font-bold text-foreground lg:text-2xl">{content.title}</p>

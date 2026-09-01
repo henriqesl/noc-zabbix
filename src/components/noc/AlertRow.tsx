@@ -7,7 +7,7 @@ import { parseAlertTime } from '@/domain/noc-selectors';
 import { cn } from '@/lib/utils';
 
 const severityConfig = {
-  critical: { icon: AlertCircle, bg: 'bg-noc-critical/10', border: 'border-noc-critical/30', text: 'text-noc-critical', label: 'CRITICO' },
+  critical: { icon: AlertCircle, bg: 'bg-noc-warning/10', border: 'border-noc-warning/30', text: 'text-noc-warning', label: 'ALTA' },
   warning: { icon: AlertTriangle, bg: 'bg-noc-warning/10', border: 'border-noc-warning/30', text: 'text-noc-warning', label: 'ALERTA' },
   info: { icon: Info, bg: 'bg-info/10', border: 'border-info/30', text: 'text-info', label: 'INFO' },
 };
@@ -25,11 +25,10 @@ export function AlertRow({ alert, index = 0 }: { alert: Alert; index?: number })
       className={cn(
         'flex items-center gap-3 rounded-md border p-3 transition-all',
         config.bg,
-        config.border,
-        alert.severity === 'critical' && 'noc-critical-glow'
+        config.border
       )}
     >
-      <Icon className={cn('h-5 w-5 shrink-0', config.text, alert.severity === 'critical' && 'animate-pulse-dot')} />
+      <Icon className={cn('h-5 w-5 shrink-0', config.text)} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className={cn('rounded px-1.5 py-0.5 font-mono text-[10px] font-bold', config.bg, config.text)}>

@@ -1,6 +1,9 @@
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Clock, RefreshCw, WifiOff } from 'lucide-react';
+import { BarChart3, Clock, Menu, MonitorUp, RefreshCw, Search, WifiOff, X } from 'lucide-react';
+import { type FormEvent, useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import type { DisplayMode } from '@/hooks/use-display-mode';
 import { cn } from '@/lib/utils';
 
 interface NocHeaderProps {
@@ -11,42 +14,107 @@ interface NocHeaderProps {
   confirmedCount: number;
   unconfirmedCount: number;
   error: string | null;
+  mode: DisplayMode;
+  onModeChange: (mode: DisplayMode) => void;
 }
 
-export function NocHeader({ lastUpdate, isRefreshing, onRefresh, onlineCount, confirmedCount, unconfirmedCount, error }: NocHeaderProps) {
+const navItems = [
+  { label: 'Resumo', to: '/' },
+  { label: 'Ocorrências', to: '/alerts' },
+  { label: 'Ambientes', to: '/#ambientes' },
+  { label: 'Inventário', to: '/cameras' },
+  { label: 'Infraestrutura', to: '/infra' },
+];
+
+export function NocHeader(props: NocHeaderProps) {
+  const { pathname, hash, search: locationSearch } = useLocation();
+  const navigate = useNavigate();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [search, setSearch] = useState(() => new URLSearchParams(locationSearch).get('busca') ?? '');
+  const currentMode = new URLSearchParams(locationSearch).get('mode');
+
+  useEffect(() => setMobileOpen(false), [hash, pathname]);
+  useEffect(() => setSearch(new URLSearchParams(locationSearch).get('busca') ?? ''), [locationSearch]);
+
+  const submitSearch = (event: FormEvent) => {
+    event.preventDefault();
+    const params = new URLSearchParams();
+    if (currentMode) params.set('mode', currentMode);
+    if (search.trim()) params.set('busca', search.trim());
+    navigate({ pathname: '/', hash: 'ambientes', search: params.toString() });
+  };
+
   return (
-    <header className="sticky top-0 z-20 flex min-h-16 items-center justify-between border-b border-border bg-background/90 px-4 py-3 backdrop-blur-xl lg:px-6 xl:px-8">
-      <div className="flex min-w-0 items-center gap-4">
-        <h1 className="truncate text-lg font-bold tracking-tight text-foreground lg:text-xl">
-          <span className="text-primary">Bionic</span> NOC
-        </h1>
-        <div className="hidden items-center gap-2 text-xs lg:flex">
-          <span className="flex items-center gap-2 rounded-full bg-noc-ok/10 px-3 py-1.5 text-noc-ok">
-            <span className="h-2 w-2 rounded-full bg-noc-ok" /> <strong className="font-mono">{onlineCount}</strong> respondendo
-          </span>
-          <span className="flex items-center gap-2 rounded-full bg-noc-critical/10 px-3 py-1.5 text-noc-critical">
-            <span className={cn('h-2 w-2 rounded-full bg-noc-critical', confirmedCount > 0 && 'animate-pulse-dot')} /> <strong className="font-mono">{confirmedCount}</strong> com falha
-          </span>
-          <span className="flex items-center gap-2 rounded-full bg-info/10 px-3 py-1.5 text-info">
-            <span className="h-2 w-2 rounded-full bg-info" /> <strong className="font-mono">{unconfirmedCount}</strong> não confirmados
-          </span>
+    <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-xl">
+      <div className="noc-header-row mx-auto flex w-full max-w-[220rem] items-center gap-3 px-4 sm:px-5 lg:px-7">
+        <Link to={navTarget('/', currentMode)} className="flex shrink-0 items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary"><MonitorUp className="h-4 w-4" /></span>
+          <span className="hidden font-semibold tracking-tight text-foreground sm:inline"><span className="text-primary">Bionic</span> NOC</span>
+        </Link>
+
+        <nav className="hidden h-full items-center gap-1 lg:flex" aria-label="Navegação principal">
+          {navItems.map(item => {
+            const active = item.to === '/#ambientes'
+              ? pathname === '/' && hash === '#ambientes'
+              : item.to === '/' ? pathname === '/' && hash !== '#ambientes' : pathname === item.to;
+            return <Link key={item.label} to={navTarget(item.to, currentMode)} className={cn('noc-nav-link', active && 'noc-nav-link-active')}>{item.label}</Link>;
+          })}
+        </nav>
+
+        <form onSubmit={submitSearch} className="mode-analysis-only relative ml-auto hidden w-full max-w-xs xl:block">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input value={search} onChange={event => setSearch(event.target.value)} className="h-9 w-full rounded-lg border border-border bg-surface-elevated/50 pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground focus:border-info focus:ring-1 focus:ring-info/30" placeholder="Cliente, host, IP ou proxy" aria-label="Busca global" />
+        </form>
+
+        <div className="hidden items-center gap-3 text-xs xl:flex">
+          <StatusDot value={props.confirmedCount} label="falhas" tone="critical" />
+          <StatusDot value={props.unconfirmedCount} label="sem confirmação" tone="info" />
+          <StatusDot value={props.onlineCount} label="funcionando" tone="success" analysisOnly />
+        </div>
+
+        <div className="ml-auto flex items-center gap-2 xl:ml-0">
+          <ModeSwitch mode={props.mode} onChange={props.onModeChange} />
+          {props.error && <span title="A coleta falhou; o último snapshot foi preservado" className="text-info"><WifiOff className="h-4 w-4" /></span>}
+          <span className="hidden items-center gap-1.5 text-xs text-muted-foreground 2xl:flex"><Clock className="h-3.5 w-3.5" /><span className="font-mono">{format(props.lastUpdate, 'HH:mm:ss', { locale: ptBR })}</span></span>
+          <button type="button" onClick={props.onRefresh} className="noc-icon-button" aria-label="Atualizar dados" title="Atualizar dados"><RefreshCw className={cn('h-4 w-4', props.isRefreshing && 'animate-spin')} /></button>
+          <button type="button" onClick={() => setMobileOpen(value => !value)} className="noc-icon-button lg:hidden" aria-expanded={mobileOpen} aria-label="Abrir navegação">{mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}</button>
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        {error && <span className="hidden items-center gap-1.5 text-xs font-medium text-noc-critical sm:flex"><WifiOff className="h-3.5 w-3.5" /> Coleta falhou</span>}
-        <div className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
-          <Clock className="h-3.5 w-3.5" />
-          <span className="font-mono">{format(lastUpdate, 'HH:mm:ss', { locale: ptBR })}</span>
+      {mobileOpen && (
+        <div className="border-t border-border bg-surface px-4 py-3 lg:hidden">
+          <form onSubmit={submitSearch} className="relative mb-3">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input value={search} onChange={event => setSearch(event.target.value)} className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm outline-none focus:border-info" placeholder="Cliente, host, IP ou proxy" aria-label="Busca global" />
+          </form>
+          <nav className="grid grid-cols-2 gap-1" aria-label="Navegação móvel">
+            {navItems.map(item => <Link key={item.label} to={navTarget(item.to, currentMode)} className="rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-surface-elevated hover:text-foreground">{item.label}</Link>)}
+          </nav>
         </div>
-        <button
-          onClick={onRefresh}
-          className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-secondary px-3 text-xs font-semibold text-foreground transition-colors hover:border-primary/40 hover:bg-accent"
-        >
-          <RefreshCw className={cn('h-3.5 w-3.5', isRefreshing && 'animate-spin')} />
-          <span className="hidden sm:inline">Atualizar</span>
-        </button>
-      </div>
+      )}
     </header>
   );
+}
+
+function ModeSwitch({ mode, onChange }: { mode: DisplayMode; onChange: (mode: DisplayMode) => void }) {
+  return (
+    <div className="hidden items-center rounded-lg border border-border bg-surface p-0.5 sm:flex" aria-label="Modo de exibição">
+      <button type="button" onClick={() => onChange('room')} title="Modo Sala" aria-pressed={mode === 'room'} className={cn('noc-mode-button', mode === 'room' && 'noc-mode-button-active')}><MonitorUp className="h-3.5 w-3.5" /><span className="hidden 2xl:inline">Sala</span></button>
+      <button type="button" onClick={() => onChange('analysis')} title="Modo Análise" aria-pressed={mode === 'analysis'} className={cn('noc-mode-button', mode === 'analysis' && 'noc-mode-button-active')}><BarChart3 className="h-3.5 w-3.5" /><span className="hidden 2xl:inline">Análise</span></button>
+    </div>
+  );
+}
+
+function StatusDot({ value, label, tone, analysisOnly = false }: { value: number; label: string; tone: 'critical' | 'info' | 'success'; analysisOnly?: boolean }) {
+  const toneClass = { critical: 'bg-noc-critical', info: 'bg-info', success: 'bg-noc-ok' }[tone];
+  return <span className={cn('flex items-center gap-1.5 whitespace-nowrap text-muted-foreground', analysisOnly && 'mode-analysis-only')}><span className={cn('h-2 w-2 rounded-full', toneClass)} /><strong className="font-mono text-foreground">{value}</strong> {label}</span>;
+}
+
+function navTarget(target: string, mode: string | null) {
+  const hasEnvironmentHash = target === '/#ambientes';
+  return {
+    pathname: hasEnvironmentHash ? '/' : target,
+    hash: hasEnvironmentHash ? 'ambientes' : '',
+    search: mode ? `?mode=${encodeURIComponent(mode)}` : '',
+  };
 }

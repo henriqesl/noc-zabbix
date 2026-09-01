@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useMemo } from 'react';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { Camera, EyeOff, MonitorCheck, WifiOff } from 'lucide-react';
 import { DeviceCard } from '@/components/noc/DeviceCard';
 import { DeviceFilterBar, type DeviceFilters } from '@/components/noc/DeviceFilterBar';
@@ -8,16 +8,28 @@ import { StatusCard } from '@/components/noc/StatusCard';
 import { useNocData } from '@/hooks/use-noc-data';
 import { cleanGroupName, filterDevices, getCameraSummary, isActiveNocGroup } from '@/domain/noc-selectors';
 
-const initialFilters: DeviceFilters = {
-  search: '',
-  status: 'all',
-  type: 'camera',
-};
-
 export default function CamerasPage() {
   const data = useOutletContext<ReturnType<typeof useNocData>>();
-  const [filters, setFilters] = useState<DeviceFilters>(initialFilters);
-  const [clientFilter, setClientFilter] = useState('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters = useMemo<DeviceFilters>(() => ({
+    search: searchParams.get('busca') ?? '',
+    status: readOption(searchParams.get('estado'), ['all', 'online', 'offline', 'warning', 'unknown'], 'all'),
+    type: 'camera',
+  }), [searchParams]);
+  const clientFilter = searchParams.get('cliente') ?? 'all';
+  const setFilters = (nextFilters: DeviceFilters) => {
+    const next = new URLSearchParams(searchParams);
+    setOrDelete(next, 'busca', nextFilters.search);
+    setOrDelete(next, 'estado', nextFilters.status, 'all');
+    next.set('tipo', 'camera');
+    setSearchParams(next, { replace: true });
+  };
+  const setClientFilter = (client: string) => {
+    const next = new URLSearchParams(searchParams);
+    setOrDelete(next, 'cliente', client, 'all');
+    next.set('tipo', 'camera');
+    setSearchParams(next, { replace: true });
+  };
   const activeDevices = useMemo(
     () => data.groups.filter(isActiveNocGroup).flatMap(group => group.devices),
     [data.groups]
@@ -126,4 +138,13 @@ export default function CamerasPage() {
       </section>
     </div>
   );
+}
+
+function readOption<T extends string>(value: string | null, options: readonly T[], fallback: T): T {
+  return value && options.includes(value as T) ? value as T : fallback;
+}
+
+function setOrDelete(params: URLSearchParams, key: string, value: string, defaultValue = '') {
+  if (!value || value === defaultValue) params.delete(key);
+  else params.set(key, value);
 }

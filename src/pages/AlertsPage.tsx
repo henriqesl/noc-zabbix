@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useMemo } from 'react';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, BellRing, EyeOff, Search, Siren } from 'lucide-react';
 import { AlertRow } from '@/components/noc/AlertRow';
 import { StatusCard } from '@/components/noc/StatusCard';
@@ -15,12 +15,24 @@ const maxAlerts = 200;
 
 export default function AlertsPage() {
   const data = useOutletContext<ReturnType<typeof useNocData>>();
-  const [severityFilter, setSeverityFilter] = useState<SeverityFilter>('todos');
-  const [clientFilter, setClientFilter] = useState('todos');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('todos');
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('24h');
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const severityFilter = readOption<SeverityFilter>(searchParams.get('severidade'), ['todos', 'critical', 'warning', 'info'], 'todos');
+  const clientFilter = searchParams.get('cliente') ?? 'todos';
+  const statusFilter = readOption<StatusFilter>(searchParams.get('status'), ['todos', 'abertos', 'reconhecidos'], 'todos');
+  const periodFilter = readOption<PeriodFilter>(searchParams.get('periodo'), ['all', '1h', '6h', '24h', '7d'], '24h');
+  const search = searchParams.get('busca') ?? '';
+  const page = Math.max(1, Number(searchParams.get('pagina')) || 1);
+  const updateFilter = (key: string, value: string, defaultValue: string) => {
+    const next = new URLSearchParams(searchParams);
+    setOrDelete(next, key, value, defaultValue);
+    next.delete('pagina');
+    setSearchParams(next, { replace: true });
+  };
+  const setPage = (nextPage: number) => {
+    const next = new URLSearchParams(searchParams);
+    setOrDelete(next, 'pagina', String(nextPage), '1');
+    setSearchParams(next, { replace: true });
+  };
 
   const { visibleAlerts, suppressedAlerts, criticalAlerts, warningAlerts } = getAlertSummary(data.alerts, data.visibilityAffectedDevices);
   const uniqueClients = useMemo(() => Array.from(new Set(data.groups.map(group => group.name))).sort(), [data.groups]);
@@ -46,10 +58,6 @@ export default function AlertsPage() {
   const currentPage = Math.min(page, totalPages);
   const paginatedAlerts = filteredAlerts.slice((currentPage - 1) * alertsPerPage, currentPage * alertsPerPage);
 
-  useEffect(() => {
-    setPage(1);
-  }, [clientFilter, normalizedSearch, periodFilter, severityFilter, statusFilter]);
-
   return (
     <div className="space-y-7 2xl:space-y-9">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -61,7 +69,7 @@ export default function AlertsPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatusCard title="Alta severidade" value={criticalAlerts.length} subtitle="avaliar primeiro" icon={<Siren className="h-5 w-5" />} variant={criticalAlerts.length ? 'critical' : 'default'} />
+        <StatusCard title="Alta severidade" value={criticalAlerts.length} subtitle="avaliar primeiro" icon={<Siren className="h-5 w-5" />} variant={criticalAlerts.length ? 'warning' : 'default'} />
         <StatusCard title="Avisos" value={warningAlerts.length} subtitle="podem exigir acompanhamento" icon={<AlertTriangle className="h-5 w-5" />} variant={warningAlerts.length ? 'warning' : 'default'} />
         <StatusCard title="Fora da contagem" value={suppressedAlerts.length} subtitle="estado não confirmado pelo proxy" icon={<EyeOff className="h-5 w-5" />} variant={suppressedAlerts.length ? 'info' : 'default'} />
         <StatusCard title="Alertas exibidos" value={filteredAlerts.length} subtitle={`de ${visibleAlerts.length} acionáveis`} icon={<BellRing className="h-5 w-5" />} />
@@ -74,7 +82,7 @@ export default function AlertsPage() {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               value={search}
-              onChange={event => setSearch(event.target.value)}
+              onChange={event => updateFilter('busca', event.target.value, '')}
               placeholder="Buscar alerta"
               className="h-10 w-full rounded-md border border-border bg-background pl-9 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
             />
@@ -83,7 +91,7 @@ export default function AlertsPage() {
           <select
             className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
             value={severityFilter}
-            onChange={event => setSeverityFilter(event.target.value as SeverityFilter)}
+            onChange={event => updateFilter('severidade', event.target.value, 'todos')}
           >
             <option value="todos">Todas severidades</option>
             <option value="critical">Critico</option>
@@ -94,7 +102,7 @@ export default function AlertsPage() {
           <select
             className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
             value={statusFilter}
-            onChange={event => setStatusFilter(event.target.value as StatusFilter)}
+            onChange={event => updateFilter('status', event.target.value, 'todos')}
           >
             <option value="todos">Todos status</option>
             <option value="abertos">Abertos</option>
@@ -104,7 +112,7 @@ export default function AlertsPage() {
           <select
             className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
             value={periodFilter}
-            onChange={event => setPeriodFilter(event.target.value as PeriodFilter)}
+            onChange={event => updateFilter('periodo', event.target.value, '24h')}
           >
             <option value="1h">Ultima hora</option>
             <option value="6h">Ultimas 6h</option>
@@ -116,7 +124,7 @@ export default function AlertsPage() {
           <select
             className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
             value={clientFilter}
-            onChange={event => setClientFilter(event.target.value)}
+            onChange={event => updateFilter('cliente', event.target.value, 'todos')}
           >
             <option value="todos">Todos clientes</option>
             {uniqueClients.map(client => (
@@ -146,7 +154,7 @@ export default function AlertsPage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setPage(value => Math.max(1, value - 1))}
+              onClick={() => setPage(Math.max(1, currentPage - 1))}
               disabled={currentPage === 1}
               className="h-9 rounded-md border border-border px-3 text-sm text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -154,7 +162,7 @@ export default function AlertsPage() {
             </button>
             <button
               type="button"
-              onClick={() => setPage(value => Math.min(totalPages, value + 1))}
+              onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
               className="h-9 rounded-md border border-border px-3 text-sm text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -165,4 +173,13 @@ export default function AlertsPage() {
       )}
     </div>
   );
+}
+
+function readOption<T extends string>(value: string | null, options: readonly T[], fallback: T): T {
+  return value && options.includes(value as T) ? value as T : fallback;
+}
+
+function setOrDelete(params: URLSearchParams, key: string, value: string, defaultValue = '') {
+  if (!value || value === defaultValue) params.delete(key);
+  else params.set(key, value);
 }

@@ -115,7 +115,7 @@ function MetricBar({ label, value }: { label: string; value: number }) {
       <div className="flex items-center gap-1.5">
         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
           <div
-            className={cn('h-full rounded-full', value > 80 ? 'bg-noc-critical' : value > 60 ? 'bg-noc-warning' : 'bg-noc-ok')}
+            className={cn('h-full rounded-full', value > 60 ? 'bg-noc-warning' : 'bg-noc-ok')}
             style={{ width: `${value}%` }}
           />
         </div>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ClientGroup, Device, DeviceClassification } from '@/domain/noc';
-import { getGroupHealth, getNocSummary, isRealOfflineDevice } from '@/domain/noc-selectors';
+import { filterClientGroups, getGroupHealth, getNocSummary, isRealOfflineDevice } from '@/domain/noc-selectors';
 
 const classifications: Record<'functioning' | 'failure' | 'unconfirmed', DeviceClassification> = {
   functioning: {
@@ -45,5 +45,14 @@ describe('classificação operacional nos seletores', () => {
 
     expect(summary.realOfflineDevices).toEqual([confirmed]);
     expect(summary.visibilityAffectedDevices).toEqual([viaProxy]);
+  });
+
+  it('permite busca global pelo proxy associado', () => {
+    const viaProxy = device({ proxyName: 'Proxy Terphane Fortaleza' });
+    const group: ClientGroup = { id: 'group-1', name: '[CLIENTE] Teste', devices: [viaProxy] };
+
+    expect(filterClientGroups([group], {
+      search: 'terphane', status: 'all', type: 'all', bucket: 'all', sortBy: 'criticality',
+    })).toEqual([group]);
   });
 });
