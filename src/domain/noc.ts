@@ -93,6 +93,24 @@ export interface NocData {
   snapshot: SnapshotMetadata;
 }
 
+export type OccurrenceKind = 'failure' | 'alert' | 'visibility';
+
+export interface NocOccurrence {
+  id: string;
+  kind: OccurrenceKind;
+  severity: AlertSeverity;
+  title: string;
+  environmentId?: string;
+  environmentName: string;
+  operationalState: OperationalState;
+  visibility: VisibilityQuality;
+  evidence: StateEvidence;
+  affectedDevices: Device[];
+  relatedAlerts: Alert[];
+  proxyName?: string;
+  acknowledged?: boolean;
+}
+
 export type GroupHealthStatus = 'healthy' | 'warning' | 'critical' | 'degraded' | 'empty';
 
 export interface GroupHealth {

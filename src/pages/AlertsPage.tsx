@@ -1,178 +1,224 @@
-import { useMemo } from 'react';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { ChevronLeft, ChevronRight, Search, SlidersHorizontal } from 'lucide-react';
+import { useMemo, type ReactNode } from 'react';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, BellRing, EyeOff, Search, Siren } from 'lucide-react';
-import { AlertRow } from '@/components/noc/AlertRow';
-import { StatusCard } from '@/components/noc/StatusCard';
+import { OccurrenceBadge } from '@/components/noc/OccurrenceBadge';
+import { OccurrenceEvidenceSheet } from '@/components/noc/OccurrenceEvidenceSheet';
+import type { AlertSeverity, NocOccurrence, OccurrenceKind } from '@/domain/noc';
+import { buildNocOccurrences, getOccurrenceCounts } from '@/domain/noc-occurrences';
+import { isWithinPeriod, parseAlertTime } from '@/domain/noc-selectors';
 import { useNocData } from '@/hooks/use-noc-data';
-import { getAlertSummary, isWithinPeriod, sortAlertsByDateDesc } from '@/domain/noc-selectors';
-import type { AlertSeverity } from '@/domain/noc';
 
-type SeverityFilter = AlertSeverity | 'todos';
-type StatusFilter = 'todos' | 'abertos' | 'reconhecidos';
+type TabValue = 'all' | OccurrenceKind;
+type StatusFilter = 'all' | 'open' | 'acknowledged';
 type PeriodFilter = 'all' | '1h' | '6h' | '24h' | '7d';
-const alertsPerPage = 10;
-const maxAlerts = 200;
+
+const pageSize = 15;
+const maxOccurrences = 300;
+
+const tabDefinitions: Array<{ value: TabValue; label: string; countKey: keyof ReturnType<typeof getOccurrenceCounts> }> = [
+  { value: 'all', label: 'Todas', countKey: 'all' },
+  { value: 'failure', label: 'Falhas', countKey: 'failure' },
+  { value: 'alert', label: 'Alertas', countKey: 'alert' },
+  { value: 'visibility', label: 'Visibilidade', countKey: 'visibility' },
+];
 
 export default function AlertsPage() {
   const data = useOutletContext<ReturnType<typeof useNocData>>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const severityFilter = readOption<SeverityFilter>(searchParams.get('severidade'), ['todos', 'critical', 'warning', 'info'], 'todos');
-  const clientFilter = searchParams.get('cliente') ?? 'todos';
-  const statusFilter = readOption<StatusFilter>(searchParams.get('status'), ['todos', 'abertos', 'reconhecidos'], 'todos');
-  const periodFilter = readOption<PeriodFilter>(searchParams.get('periodo'), ['all', '1h', '6h', '24h', '7d'], '24h');
+  const occurrences = useMemo(() => buildNocOccurrences(data.groups, data.alerts), [data.alerts, data.groups]);
+  const counts = useMemo(() => getOccurrenceCounts(occurrences), [occurrences]);
+  const hasAcknowledgementData = occurrences.some(occurrence => occurrence.acknowledged !== undefined);
+  const tab = readTab(searchParams.get('aba'));
   const search = searchParams.get('busca') ?? '';
-  const page = Math.max(1, Number(searchParams.get('pagina')) || 1);
-  const updateFilter = (key: string, value: string, defaultValue: string) => {
+  const environment = searchParams.get('cliente') ?? 'all';
+  const severity = readOption<AlertSeverity | 'all'>(searchParams.get('severidade'), ['all', 'critical', 'warning', 'info'], 'all');
+  const status = readOption<StatusFilter>(searchParams.get('status'), ['all', 'open', 'acknowledged'], 'all');
+  const period = readOption<PeriodFilter>(searchParams.get('periodo'), ['all', '1h', '6h', '24h', '7d'], 'all');
+  const requestedPage = Math.max(1, Number(searchParams.get('pagina')) || 1);
+  const selectedId = searchParams.get('ocorrencia');
+  const selectedOccurrence = occurrences.find(item => item.id === selectedId) ?? null;
+  const environments = useMemo(
+    () => Array.from(new Set(occurrences.map(item => item.environmentName))).sort((a, b) => a.localeCompare(b)),
+    [occurrences]
+  );
+  const normalizedSearch = normalize(search);
+
+  const filteredOccurrences = occurrences.filter(occurrence => {
+    const matchesTab = tab === 'all' || occurrence.kind === tab;
+    const matchesEnvironment = environment === 'all' || occurrence.environmentName === environment;
+    const matchesSeverity = severity === 'all' || occurrence.severity === severity;
+    const matchesStatus = !hasAcknowledgementData || status === 'all' || (status === 'acknowledged' ? occurrence.acknowledged === true : occurrence.acknowledged === false);
+    const matchesPeriod = isWithinPeriod(occurrence.evidence.observedAt, period);
+    const searchable = normalize([
+      occurrence.title,
+      occurrence.environmentName,
+      occurrence.evidence.reasonCode,
+      occurrence.evidence.reasonLabel,
+      occurrence.proxyName ?? '',
+      ...occurrence.affectedDevices.flatMap(device => [device.name, device.ip]),
+    ].join(' '));
+    return matchesTab && matchesEnvironment && matchesSeverity && matchesStatus && matchesPeriod && (!normalizedSearch || searchable.includes(normalizedSearch));
+  }).slice(0, maxOccurrences);
+  const totalPages = Math.max(1, Math.ceil(filteredOccurrences.length / pageSize));
+  const currentPage = Math.min(requestedPage, totalPages);
+  const pageOccurrences = filteredOccurrences.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const updateFilter = (key: string, value: string, defaultValue = '') => {
     const next = new URLSearchParams(searchParams);
     setOrDelete(next, key, value, defaultValue);
     next.delete('pagina');
+    next.delete('ocorrencia');
     setSearchParams(next, { replace: true });
   };
-  const setPage = (nextPage: number) => {
+  const selectTab = (nextTab: TabValue) => updateFilter('aba', tabToUrl(nextTab), 'todas');
+  const setPage = (page: number) => {
     const next = new URLSearchParams(searchParams);
-    setOrDelete(next, 'pagina', String(nextPage), '1');
+    setOrDelete(next, 'pagina', String(page), '1');
+    next.delete('ocorrencia');
     setSearchParams(next, { replace: true });
   };
-
-  const { visibleAlerts, suppressedAlerts, criticalAlerts, warningAlerts } = getAlertSummary(data.alerts, data.visibilityAffectedDevices);
-  const uniqueClients = useMemo(() => Array.from(new Set(data.groups.map(group => group.name))).sort(), [data.groups]);
-  const normalizedSearch = search.trim().toLowerCase();
-
-  const filteredAlerts = sortAlertsByDateDesc(visibleAlerts.filter(alert => {
-    const matchesSeverity = severityFilter === 'todos' || alert.severity === severityFilter;
-    const matchesClient =
-      clientFilter === 'todos' ||
-      alert.group === clientFilter ||
-      alert.device.toLowerCase().includes(clientFilter.toLowerCase());
-    const matchesStatus =
-      statusFilter === 'todos' ||
-      (statusFilter === 'reconhecidos' ? Boolean(alert.acknowledged) : !alert.acknowledged);
-    const matchesPeriod = isWithinPeriod(alert.timestamp, periodFilter);
-    const matchesSearch =
-      !normalizedSearch ||
-      `${alert.device} ${alert.group} ${alert.message}`.toLowerCase().includes(normalizedSearch);
-
-    return matchesSeverity && matchesClient && matchesStatus && matchesPeriod && matchesSearch;
-  })).slice(0, maxAlerts);
-  const totalPages = Math.max(1, Math.ceil(filteredAlerts.length / alertsPerPage));
-  const currentPage = Math.min(page, totalPages);
-  const paginatedAlerts = filteredAlerts.slice((currentPage - 1) * alertsPerPage, currentPage * alertsPerPage);
+  const selectOccurrence = (occurrence: NocOccurrence | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (occurrence) next.set('ocorrencia', occurrence.id);
+    else next.delete('ocorrencia');
+    setSearchParams(next, { replace: true });
+  };
 
   return (
-    <div className="space-y-7 2xl:space-y-9">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">Central de alertas</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight lg:text-4xl">Eventos que precisam de análise</h1>
-          <p className="mt-2 text-sm text-muted-foreground lg:text-base">Alertas em ordem de prioridade e horário. Use os filtros para investigar um cliente.</p>
+    <div className="space-y-6">
+      <header>
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">Ocorrências</p>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight text-foreground lg:text-4xl">O que exige análise</h1>
+        <p className="mt-2 max-w-3xl text-sm text-muted-foreground lg:text-base">Falhas confirmadas, alertas e limitações de visibilidade em uma única linha de investigação.</p>
+      </header>
+
+      <div className="border-b border-border" role="tablist" aria-label="Tipo de ocorrência">
+        <div className="flex gap-1 overflow-x-auto">
+          {tabDefinitions.map(item => (
+            <button
+              key={item.value}
+              type="button"
+              role="tab"
+              aria-selected={tab === item.value}
+              onClick={() => selectTab(item.value)}
+              className={`inline-flex min-h-11 items-center gap-2 whitespace-nowrap border-b-2 px-3 text-sm font-semibold transition-colors ${tab === item.value ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            >
+              {item.label}<span className="rounded-md bg-surface-elevated px-1.5 py-0.5 font-mono text-xs">{counts[item.countKey]}</span>
+            </button>
+          ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatusCard title="Alta severidade" value={criticalAlerts.length} subtitle="avaliar primeiro" icon={<Siren className="h-5 w-5" />} variant={criticalAlerts.length ? 'warning' : 'default'} />
-        <StatusCard title="Avisos" value={warningAlerts.length} subtitle="podem exigir acompanhamento" icon={<AlertTriangle className="h-5 w-5" />} variant={warningAlerts.length ? 'warning' : 'default'} />
-        <StatusCard title="Fora da contagem" value={suppressedAlerts.length} subtitle="estado não confirmado pelo proxy" icon={<EyeOff className="h-5 w-5" />} variant={suppressedAlerts.length ? 'info' : 'default'} />
-        <StatusCard title="Alertas exibidos" value={filteredAlerts.length} subtitle={`de ${visibleAlerts.length} acionáveis`} icon={<BellRing className="h-5 w-5" />} />
-      </div>
-
-      <section className="rounded-xl border border-border bg-card/70 p-4">
-        <div className="mb-3"><h2 className="font-semibold text-foreground">Filtrar alertas</h2><p className="text-xs text-muted-foreground">A lista mostra no máximo os {maxAlerts} eventos mais recentes.</p></div>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
-          <div className="relative sm:col-span-2 xl:col-span-1">
+      <section className="rounded-xl border border-border bg-card/50 p-3" aria-label="Filtros de ocorrências">
+        <div className={`grid grid-cols-1 gap-2 sm:grid-cols-2 ${hasAcknowledgementData ? 'xl:grid-cols-[minmax(14rem,1fr)_repeat(4,minmax(9rem,auto))]' : 'xl:grid-cols-[minmax(14rem,1fr)_repeat(3,minmax(9rem,auto))]'}`}>
+          <label className="relative sm:col-span-2 xl:col-span-1">
+            <span className="sr-only">Buscar ocorrências</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={event => updateFilter('busca', event.target.value, '')}
-              placeholder="Buscar alerta"
-              className="h-10 w-full rounded-md border border-border bg-background pl-9 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
-            />
-          </div>
-
-          <select
-            className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
-            value={severityFilter}
-            onChange={event => updateFilter('severidade', event.target.value, 'todos')}
-          >
-            <option value="todos">Todas severidades</option>
-            <option value="critical">Critico</option>
-            <option value="warning">Aviso</option>
-            <option value="info">Info</option>
-          </select>
-
-          <select
-            className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
-            value={statusFilter}
-            onChange={event => updateFilter('status', event.target.value, 'todos')}
-          >
-            <option value="todos">Todos status</option>
-            <option value="abertos">Abertos</option>
-            <option value="reconhecidos">Reconhecidos</option>
-          </select>
-
-          <select
-            className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
-            value={periodFilter}
-            onChange={event => updateFilter('periodo', event.target.value, '24h')}
-          >
-            <option value="1h">Ultima hora</option>
-            <option value="6h">Ultimas 6h</option>
-            <option value="24h">Ultimas 24h</option>
-            <option value="7d">Ultimos 7 dias</option>
-            <option value="all">Todo periodo</option>
-          </select>
-
-          <select
-            className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
-            value={clientFilter}
-            onChange={event => updateFilter('cliente', event.target.value, 'todos')}
-          >
-            <option value="todos">Todos clientes</option>
-            {uniqueClients.map(client => (
-              <option key={client} value={client}>{client}</option>
-            ))}
-          </select>
+            <input value={search} onChange={event => updateFilter('busca', event.target.value)} className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary" placeholder="Ambiente, equipamento, IP ou evidência" />
+          </label>
+          <FilterSelect label="Ambiente" value={environment} onChange={value => updateFilter('cliente', value, 'all')}>
+            <option value="all">Todos ambientes</option>
+            {environments.map(item => <option key={item} value={item}>{item}</option>)}
+          </FilterSelect>
+          <FilterSelect label="Severidade" value={severity} onChange={value => updateFilter('severidade', value, 'all')}>
+            <option value="all">Toda severidade</option><option value="critical">Alta</option><option value="warning">Alerta</option><option value="info">Informativa</option>
+          </FilterSelect>
+          {hasAcknowledgementData && (
+            <FilterSelect label="Reconhecimento" value={status} onChange={value => updateFilter('status', value, 'all')}>
+              <option value="all">Todo reconhecimento</option><option value="open">Não reconhecidas</option><option value="acknowledged">Reconhecidas</option>
+            </FilterSelect>
+          )}
+          <FilterSelect label="Período" value={period} onChange={value => updateFilter('periodo', value, 'all')}>
+            <option value="all">Todo período</option><option value="1h">Última hora</option><option value="6h">Últimas 6 horas</option><option value="24h">Últimas 24 horas</option><option value="7d">Últimos 7 dias</option>
+          </FilterSelect>
         </div>
       </section>
 
-      <div className="space-y-2">
-        {paginatedAlerts.length > 0 ? (
-          paginatedAlerts.map((alert, index) => (
-            <AlertRow key={alert.id} alert={alert} index={index} />
-          ))
-        ) : (
-          <div className="rounded-lg border border-dashed border-border bg-card/50 p-8 text-center text-sm text-muted-foreground">
-            Nenhum alerta encontrado com os filtros atuais.
-          </div>
-        )}
+      <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5"><SlidersHorizontal className="h-3.5 w-3.5" />{filteredOccurrences.length} de {occurrences.length} ocorrências</span>
+        {occurrences.length > maxOccurrences && <span>Exibindo no máximo {maxOccurrences}</span>}
       </div>
 
-      {filteredAlerts.length > alertsPerPage && (
-        <div className="flex flex-col gap-3 rounded-lg border border-border bg-card/70 p-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-muted-foreground">
-            Página {currentPage} de {totalPages} · {paginatedAlerts.length} itens nesta página
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setPage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
-              className="h-9 rounded-md border border-border px-3 text-sm text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Anterior
-            </button>
-            <button
-              type="button"
-              onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
-              disabled={currentPage === totalPages}
-              className="h-9 rounded-md border border-border px-3 text-sm text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Próxima
-            </button>
+      {pageOccurrences.length > 0 ? (
+        <>
+          <div className="hidden overflow-hidden rounded-xl border border-border bg-card/40 md:block">
+            <table className="w-full table-fixed text-left text-sm">
+              <thead className="border-b border-border bg-surface/70 text-xs uppercase tracking-wide text-muted-foreground">
+                <tr><th className="w-[13rem] px-4 py-3 font-semibold">Estado</th><th className="w-[24%] px-4 py-3 font-semibold">Ambiente e impacto</th><th className="px-4 py-3 font-semibold">Evidência</th><th className="w-[9rem] px-4 py-3 font-semibold">Desde</th><th className="w-[8rem] px-4 py-3"><span className="sr-only">Ações</span></th></tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {pageOccurrences.map(occurrence => <OccurrenceTableRow key={occurrence.id} occurrence={occurrence} onSelect={() => selectOccurrence(occurrence)} />)}
+              </tbody>
+            </table>
           </div>
-        </div>
+
+          <div className="space-y-2 md:hidden">
+            {pageOccurrences.map(occurrence => <OccurrenceMobileRow key={occurrence.id} occurrence={occurrence} onSelect={() => selectOccurrence(occurrence)} />)}
+          </div>
+        </>
+      ) : (
+        <div className="rounded-xl border border-dashed border-border bg-card/40 p-10 text-center"><p className="font-semibold text-foreground">Nenhuma ocorrência encontrada</p><p className="mt-1 text-sm text-muted-foreground">Ajuste os filtros ou selecione outra aba.</p></div>
       )}
+
+      {totalPages > 1 && (
+        <nav className="flex items-center justify-between rounded-xl border border-border bg-card/40 p-3" aria-label="Paginação">
+          <p className="text-sm text-muted-foreground">Página {currentPage} de {totalPages}</p>
+          <div className="flex gap-2">
+            <PageButton label="Anterior" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} icon={<ChevronLeft className="h-4 w-4" />} />
+            <PageButton label="Próxima" disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)} icon={<ChevronRight className="h-4 w-4" />} iconAfter />
+          </div>
+        </nav>
+      )}
+
+      <OccurrenceEvidenceSheet occurrence={selectedOccurrence} onOpenChange={open => !open && selectOccurrence(null)} />
     </div>
   );
+}
+
+function OccurrenceTableRow({ occurrence, onSelect }: { occurrence: NocOccurrence; onSelect: () => void }) {
+  const impact = occurrence.affectedDevices.length === 1 ? occurrence.affectedDevices[0].name : `${occurrence.affectedDevices.length} equipamentos`;
+  return (
+    <tr className="transition-colors hover:bg-surface-elevated/35">
+      <td className="px-4 py-3"><OccurrenceBadge occurrence={occurrence} /></td>
+      <td className="px-4 py-3"><p className="truncate font-semibold text-foreground">{occurrence.environmentName}</p><p className="truncate text-xs text-muted-foreground">{impact}</p></td>
+      <td className="px-4 py-3"><p className="truncate text-foreground">{occurrence.title}</p><p className="truncate font-mono text-xs text-muted-foreground">{occurrence.evidence.reasonCode}</p></td>
+      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{formatOccurrenceTime(occurrence)}</td>
+      <td className="px-4 py-3 text-right"><button type="button" onClick={onSelect} className="rounded-md px-2.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Evidências</button></td>
+    </tr>
+  );
+}
+
+function OccurrenceMobileRow({ occurrence, onSelect }: { occurrence: NocOccurrence; onSelect: () => void }) {
+  return (
+    <button type="button" onClick={onSelect} className="w-full rounded-xl border border-border bg-card/50 p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+      <div className="flex items-start justify-between gap-3"><OccurrenceBadge occurrence={occurrence} /><span className="font-mono text-xs text-muted-foreground">{formatOccurrenceTime(occurrence)}</span></div>
+      <p className="mt-3 font-semibold text-foreground">{occurrence.environmentName}</p><p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{occurrence.title}</p>
+    </button>
+  );
+}
+
+function FilterSelect({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: ReactNode }) {
+  return <label><span className="sr-only">{label}</span><select aria-label={label} value={value} onChange={event => onChange(event.target.value)} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary">{children}</select></label>;
+}
+
+function PageButton({ label, disabled, onClick, icon, iconAfter = false }: { label: string; disabled: boolean; onClick: () => void; icon: ReactNode; iconAfter?: boolean }) {
+  return <button type="button" disabled={disabled} onClick={onClick} className="inline-flex h-9 items-center gap-1 rounded-lg border border-border px-3 text-sm font-medium text-foreground hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-40">{!iconAfter && icon}{label}{iconAfter && icon}</button>;
+}
+
+function readTab(value: string | null): TabValue {
+  const tabsByUrl: Record<string, TabValue> = {
+    todas: 'all',
+    falhas: 'failure',
+    alertas: 'alert',
+    visibilidade: 'visibility',
+  };
+  return tabsByUrl[value ?? ''] ?? 'all';
+}
+
+function tabToUrl(value: TabValue) {
+  return { all: 'todas', failure: 'falhas', alert: 'alertas', visibility: 'visibilidade' }[value];
 }
 
 function readOption<T extends string>(value: string | null, options: readonly T[], fallback: T): T {
@@ -182,4 +228,13 @@ function readOption<T extends string>(value: string | null, options: readonly T[
 function setOrDelete(params: URLSearchParams, key: string, value: string, defaultValue = '') {
   if (!value || value === defaultValue) params.delete(key);
   else params.set(key, value);
+}
+
+function normalize(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
+function formatOccurrenceTime(occurrence: NocOccurrence) {
+  const observedAt = parseAlertTime(occurrence.evidence.observedAt);
+  return observedAt > 0 ? formatDistanceToNow(observedAt, { addSuffix: true, locale: ptBR }) : 'sem horário';
 }

@@ -27,6 +27,12 @@ for (const viewport of viewports) {
     expect(firstEnvironmentBox && firstEnvironmentBox.y + firstEnvironmentBox.height).toBeLessThanOrEqual(viewport.height);
 
     await page.screenshot({ path: path.join(os.tmpdir(), `noc-vision-${viewport.name}.png`) });
+
+    await page.goto('/ocorrencias');
+    await expect(page.getByRole('heading', { name: 'O que exige análise' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: /Falhas 1/ })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+    await page.screenshot({ path: path.join(os.tmpdir(), `noc-vision-occurrences-${viewport.name}.png`) });
   });
 }
 
@@ -47,6 +53,33 @@ test('parâmetro da URL prevalece sobre a largura', async ({ page }) => {
   expect(await page.evaluate(() => window.localStorage.getItem('noc-vision:display-mode:v1'))).toBe('room');
 });
 
+test('ocorrências preservam filtros e evidências na URL', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await mockZabbix(page);
+  await page.goto('/ocorrencias');
+
+  await expect(page.getByRole('heading', { name: 'O que exige análise' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /Falhas 1/ })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /Alertas 1/ })).toBeVisible();
+
+  await page.getByRole('tab', { name: /Alertas 1/ }).click();
+  await expect(page).toHaveURL(/aba=alertas/);
+  await expect(page.getByRole('table').getByText('CPU acima do limite', { exact: true })).toBeVisible();
+
+  await page.getByRole('tab', { name: /Falhas 1/ }).click();
+  await expect(page).toHaveURL(/aba=falhas/);
+  await page.getByRole('button', { name: 'Evidências' }).click();
+  await expect(page).toHaveURL(/ocorrencia=failure%3A2/);
+
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText('Falha confirmada', { exact: true }).first()).toBeVisible();
+  await expect(dialog.getByText('Câmera recepção', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+
+  await page.screenshot({ path: path.join(os.tmpdir(), 'noc-vision-occurrences-full-hd.png') });
+});
+
 async function mockZabbix(page: import('@playwright/test').Page) {
   await page.route('**/*', async route => {
     const request = route.request();
@@ -60,7 +93,17 @@ async function mockZabbix(page: import('@playwright/test').Page) {
         { hostid: '1', host: '10.0.0.10', name: 'Servidor principal', status: '0', available: '1', groups: [{ groupid: '10', name: '[CLIENTE] Exemplo' }] },
         { hostid: '2', host: '10.0.0.20', name: 'Câmera recepção', status: '0', available: '2', groups: [{ groupid: '10', name: '[CLIENTE] Exemplo' }] },
       ],
-      'trigger.get': [],
+      'trigger.get': [
+        {
+          triggerid: '100',
+          description: 'CPU acima do limite',
+          priority: '4',
+          value: '1',
+          lastchange: String(Math.floor(Date.now() / 1000) - 600),
+          hosts: [{ hostid: '1', host: '10.0.0.10', name: 'Servidor principal' }],
+          groups: [{ groupid: '10', name: '[CLIENTE] Exemplo' }],
+        },
+      ],
       'proxy.get': [],
       'item.get': [],
     }[body.method] ?? [];
