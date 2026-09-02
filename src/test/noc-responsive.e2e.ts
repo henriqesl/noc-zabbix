@@ -45,6 +45,13 @@ for (const viewport of viewports) {
     await expect(page.locator('summary').filter({ hasText: 'Câmeras' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
     await page.screenshot({ path: path.join(os.tmpdir(), `noc-vision-inventory-${viewport.name}.png`) });
+
+    await page.goto('/infraestrutura');
+    await expect(page.getByRole('heading', { name: 'Saúde real da coleta' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Proxies e comunicação' })).toBeVisible();
+    await expect(page.getByText('Proxy Cliente - Proxy', { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+    await page.screenshot({ path: path.join(os.tmpdir(), `noc-vision-infrastructure-${viewport.name}.png`) });
   });
 }
 
@@ -149,6 +156,29 @@ test('inventário unifica tipos e mantém compatibilidade com câmeras', async (
   await expect(page.getByRole('link', { name: 'Exemplo', exact: true })).toHaveAttribute('href', '/ambientes/10');
   expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
   await page.screenshot({ path: path.join(os.tmpdir(), 'noc-vision-inventory-filtered-full-hd.png') });
+});
+
+test('infraestrutura agrupa impacto por proxy e preserva filtros na URL', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await mockZabbix(page);
+  await page.goto('/infraestrutura');
+
+  await expect(page.getByRole('heading', { name: 'Saúde real da coleta' })).toBeVisible();
+  await expect(page.getByText('Proxy Cliente - Proxy', { exact: true })).toBeVisible();
+
+  await page.getByRole('textbox', { name: 'Buscar proxy ou host associado' }).fill('10.0.0.40');
+  await expect(page).toHaveURL(/busca=10.0.0.40/);
+  await expect(page.getByText('Proxy Cliente - Proxy', { exact: true })).toBeVisible();
+
+  await page.getByLabel('Estado do proxy').selectOption('confirmed-failure');
+  await expect(page).toHaveURL(/estado=confirmed-failure/);
+  await expect(page.getByText('Nenhum proxy encontrado', { exact: true })).toBeVisible();
+
+  await page.goto('/infra');
+  await expect(page).toHaveURL(/\/infraestrutura$/);
+  await expect(page.getByRole('heading', { name: 'Saúde real da coleta' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+  await page.screenshot({ path: path.join(os.tmpdir(), 'noc-vision-infrastructure-filtered-full-hd.png') });
 });
 
 async function mockZabbix(page: import('@playwright/test').Page) {
