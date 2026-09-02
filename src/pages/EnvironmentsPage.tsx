@@ -71,6 +71,7 @@ export default function EnvironmentsPage() {
         <>
           <div className="hidden overflow-hidden rounded-xl border border-border bg-card/40 md:block">
             <table className="w-full table-fixed text-left text-sm">
+              <caption className="sr-only">Ambientes monitorados em ordem de ação</caption>
               <thead className="border-b border-border bg-surface/70 text-xs uppercase tracking-wide text-muted-foreground">
                 <tr><th className="w-[14rem] px-4 py-3 font-semibold">Situação</th><th className="w-[24%] px-4 py-3 font-semibold">Ambiente</th><th className="px-4 py-3 font-semibold">Impacto atual</th><th className="w-[12rem] px-4 py-3 font-semibold">Visibilidade</th><th className="w-[9rem] px-4 py-3 font-semibold">Monitorados</th><th className="w-[8rem] px-4 py-3"><span className="sr-only">Ações</span></th></tr>
               </thead>

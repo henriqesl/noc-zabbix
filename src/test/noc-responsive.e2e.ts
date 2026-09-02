@@ -181,6 +181,77 @@ test('infraestrutura agrupa impacto por proxy e preserva filtros na URL', async 
   await page.screenshot({ path: path.join(os.tmpdir(), 'noc-vision-infrastructure-filtered-full-hd.png') });
 });
 
+test('fluxo essencial funciona por teclado e mantém foco visível', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await mockZabbix(page);
+  await page.goto('/');
+
+  await page.keyboard.press('Tab');
+  const skipLink = page.getByRole('link', { name: 'Ir para o conteúdo principal' });
+  await expect(skipLink).toBeFocused();
+  await expect(skipLink).toHaveCSS('outline-style', 'solid');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#noc-main')).toBeFocused();
+
+  await page.goto('/ocorrencias');
+  const allTab = page.getByRole('tab', { name: /Todas 2/ });
+  await allTab.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page).toHaveURL(/aba=falhas/);
+  await expect(page.getByRole('tab', { name: /Falhas 1/ })).toBeFocused();
+  await expect(page.getByRole('tab', { name: /Falhas 1/ })).toHaveAttribute('aria-selected', 'true');
+
+  const failureBadge = page.getByText('Falha confirmada', { exact: true }).first();
+  await expect(failureBadge).toBeVisible();
+  await expect(failureBadge.locator('svg')).toHaveCount(1);
+});
+
+test('menu móvel e conteúdo permanecem utilizáveis em tela estreita', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockZabbix(page);
+  await page.goto('/');
+
+  const menu = page.getByRole('button', { name: 'Abrir navegação' });
+  await expect(menu).toHaveAttribute('aria-expanded', 'false');
+  await menu.click();
+  await expect(page.getByRole('navigation', { name: 'Navegação móvel' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Fechar navegação' })).toHaveAttribute('aria-expanded', 'true');
+  await page.getByRole('navigation', { name: 'Navegação móvel' }).getByRole('link', { name: 'Ocorrências' }).click();
+  await expect(page.getByRole('heading', { name: 'O que exige análise' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+
+  await page.screenshot({ path: path.join(os.tmpdir(), 'noc-vision-mobile.png') });
+});
+
+test('contagens operacionais permanecem consistentes entre as telas', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await mockZabbix(page);
+
+  await page.goto('/');
+  const overviewCard = page.getByText('Precisa de ação', { exact: true }).locator('../..');
+  await expect(overviewCard.getByText('1', { exact: true })).toBeVisible();
+
+  await page.goto('/ocorrencias');
+  await expect(page.getByRole('tab', { name: /Falhas 1/ })).toBeVisible();
+
+  await page.goto('/ambientes');
+  await expect(page.getByRole('table').getByRole('row').filter({ hasText: 'Exemplo' })).toContainText('1 falha');
+
+  await page.goto('/inventario');
+  const inventorySummary = page.getByText('Falhas confirmadas', { exact: true }).locator('..');
+  await expect(inventorySummary.getByText('1', { exact: true })).toBeVisible();
+});
+
+test('preferência por movimento reduzido elimina animações contínuas', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await mockZabbix(page);
+  await page.goto('/');
+
+  expect(await page.evaluate(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(true);
+  const hasInfiniteAnimation = await page.evaluate(() => Array.from(document.querySelectorAll('*')).some(element => getComputedStyle(element).animationIterationCount === 'infinite'));
+  expect(hasInfiniteAnimation).toBe(false);
+});
+
 async function mockZabbix(page: import('@playwright/test').Page) {
   await page.route('**/*', async route => {
     const request = route.request();

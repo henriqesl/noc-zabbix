@@ -1,5 +1,5 @@
 import { ArrowLeft } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, type KeyboardEvent } from 'react';
 import { Link, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 import { EnvironmentAttentionView } from '@/components/noc/EnvironmentAttentionView';
 import { EnvironmentInfrastructureView } from '@/components/noc/EnvironmentInfrastructureView';
@@ -11,6 +11,7 @@ import type { NocOccurrence } from '@/domain/noc';
 import { buildEnvironmentInfrastructure, buildEnvironmentSummary } from '@/domain/noc-environments';
 import { buildNocOccurrences } from '@/domain/noc-occurrences';
 import { useNocData } from '@/hooks/use-noc-data';
+import { getKeyboardTab } from '@/lib/tab-navigation';
 
 type DetailTab = 'attention' | 'inventory' | 'occurrences' | 'infrastructure';
 
@@ -20,6 +21,7 @@ const tabs: Array<{ value: DetailTab; label: string }> = [
   { value: 'occurrences', label: 'Ocorrências' },
   { value: 'infrastructure', label: 'Infraestrutura' },
 ];
+const tabValues = tabs.map(item => item.value);
 
 export default function ClientDetailPage() {
   const data = useOutletContext<ReturnType<typeof useNocData>>();
@@ -45,6 +47,13 @@ export default function ClientDetailPage() {
     setSearchParams(next, { replace: true });
   };
   const selectTab = (nextTab: DetailTab) => updateQuery({ aba: tabToUrl(nextTab) }, { aba: 'atencao' });
+  const navigateTabs = (event: KeyboardEvent<HTMLButtonElement>) => {
+    const nextTab = getKeyboardTab(tab, tabValues, event.key);
+    if (!nextTab) return;
+    event.preventDefault();
+    document.getElementById(`environment-tab-${nextTab}`)?.focus();
+    selectTab(nextTab);
+  };
   const setInventoryFilters = (filters: EnvironmentInventoryFilters) => updateQuery(
     { busca: filters.search, estado: filters.state, tipo: filters.type },
     { busca: '', estado: 'all', tipo: 'all' }
@@ -76,7 +85,7 @@ export default function ClientDetailPage() {
         </section>
       </header>
 
-      <div className="border-b border-border" role="tablist" aria-label="Investigação do ambiente"><div className="flex gap-1 overflow-x-auto">{tabs.map(item => <button key={item.value} type="button" role="tab" aria-selected={tab === item.value} onClick={() => selectTab(item.value)} className={`min-h-11 whitespace-nowrap border-b-2 px-3 text-sm font-semibold transition-colors ${tab === item.value ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{item.label}</button>)}</div></div>
+      <div className="border-b border-border" role="tablist" aria-label="Investigação do ambiente"><div className="flex gap-1 overflow-x-auto">{tabs.map(item => <button key={item.value} id={`environment-tab-${item.value}`} type="button" role="tab" aria-selected={tab === item.value} tabIndex={tab === item.value ? 0 : -1} onKeyDown={navigateTabs} onClick={() => selectTab(item.value)} className={`min-h-11 whitespace-nowrap border-b-2 px-3 text-sm font-semibold transition-colors ${tab === item.value ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{item.label}</button>)}</div></div>
 
       {tab === 'attention' && <EnvironmentAttentionView summary={summary} onSelectOccurrence={selectOccurrence} occurrencesUrl={tabUrl(searchParams, 'occurrences')} />}
       {tab === 'inventory' && <EnvironmentInventoryView devices={group.devices} filters={inventoryFilters} onFiltersChange={setInventoryFilters} />}

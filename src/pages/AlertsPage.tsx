@@ -1,7 +1,7 @@
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Search, SlidersHorizontal } from 'lucide-react';
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, type KeyboardEvent, type ReactNode } from 'react';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { OccurrenceBadge } from '@/components/noc/OccurrenceBadge';
 import { OccurrenceEvidenceSheet } from '@/components/noc/OccurrenceEvidenceSheet';
@@ -9,6 +9,7 @@ import type { AlertSeverity, NocOccurrence, OccurrenceKind } from '@/domain/noc'
 import { buildNocOccurrences, getOccurrenceCounts } from '@/domain/noc-occurrences';
 import { isWithinPeriod, parseAlertTime } from '@/domain/noc-selectors';
 import { useNocData } from '@/hooks/use-noc-data';
+import { getKeyboardTab } from '@/lib/tab-navigation';
 
 type TabValue = 'all' | OccurrenceKind;
 type StatusFilter = 'all' | 'open' | 'acknowledged';
@@ -23,6 +24,7 @@ const tabDefinitions: Array<{ value: TabValue; label: string; countKey: keyof Re
   { value: 'alert', label: 'Alertas', countKey: 'alert' },
   { value: 'visibility', label: 'Visibilidade', countKey: 'visibility' },
 ];
+const tabValues = tabDefinitions.map(item => item.value);
 
 export default function AlertsPage() {
   const data = useOutletContext<ReturnType<typeof useNocData>>();
@@ -73,6 +75,13 @@ export default function AlertsPage() {
     setSearchParams(next, { replace: true });
   };
   const selectTab = (nextTab: TabValue) => updateFilter('aba', tabToUrl(nextTab), 'todas');
+  const navigateTabs = (event: KeyboardEvent<HTMLButtonElement>) => {
+    const nextTab = getKeyboardTab(tab, tabValues, event.key);
+    if (!nextTab) return;
+    event.preventDefault();
+    document.getElementById(`occurrence-tab-${nextTab}`)?.focus();
+    selectTab(nextTab);
+  };
   const setPage = (page: number) => {
     const next = new URLSearchParams(searchParams);
     setOrDelete(next, 'pagina', String(page), '1');
@@ -99,9 +108,12 @@ export default function AlertsPage() {
           {tabDefinitions.map(item => (
             <button
               key={item.value}
+              id={`occurrence-tab-${item.value}`}
               type="button"
               role="tab"
               aria-selected={tab === item.value}
+              tabIndex={tab === item.value ? 0 : -1}
+              onKeyDown={navigateTabs}
               onClick={() => selectTab(item.value)}
               className={`inline-flex min-h-11 items-center gap-2 whitespace-nowrap border-b-2 px-3 text-sm font-semibold transition-colors ${tab === item.value ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
             >
@@ -145,6 +157,7 @@ export default function AlertsPage() {
         <>
           <div className="hidden overflow-hidden rounded-xl border border-border bg-card/40 md:block">
             <table className="w-full table-fixed text-left text-sm">
+              <caption className="sr-only">Ocorrências operacionais filtradas</caption>
               <thead className="border-b border-border bg-surface/70 text-xs uppercase tracking-wide text-muted-foreground">
                 <tr><th className="w-[13rem] px-4 py-3 font-semibold">Estado</th><th className="w-[24%] px-4 py-3 font-semibold">Ambiente e impacto</th><th className="px-4 py-3 font-semibold">Evidência</th><th className="w-[9rem] px-4 py-3 font-semibold">Desde</th><th className="w-[8rem] px-4 py-3"><span className="sr-only">Ações</span></th></tr>
               </thead>

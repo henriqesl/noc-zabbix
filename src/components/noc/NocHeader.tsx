@@ -55,7 +55,7 @@ export function NocHeader(props: NocHeaderProps) {
         <nav className="hidden h-full items-center gap-1 lg:flex" aria-label="Navegação principal">
           {navItems.map(item => {
             const active = item.to === '/' ? pathname === '/' : pathname.startsWith(item.to);
-            return <Link key={item.label} to={navTarget(item.to, currentMode)} className={cn('noc-nav-link', active && 'noc-nav-link-active')}>{item.label}</Link>;
+            return <Link key={item.label} to={navTarget(item.to, currentMode)} aria-current={active ? 'page' : undefined} className={cn('noc-nav-link', active && 'noc-nav-link-active')}>{item.label}</Link>;
           })}
         </nav>
 
@@ -72,21 +72,24 @@ export function NocHeader(props: NocHeaderProps) {
 
         <div className="ml-auto flex items-center gap-2 xl:ml-0">
           <ModeSwitch mode={props.mode} onChange={props.onModeChange} />
-          {props.error && <span title="A coleta falhou; o último snapshot foi preservado" className="text-info"><WifiOff className="h-4 w-4" /></span>}
+          {props.error && <span role="status" aria-label="A coleta falhou; o último snapshot foi preservado" title="A coleta falhou; o último snapshot foi preservado" className="text-info"><WifiOff className="h-4 w-4" /></span>}
           <span className="hidden items-center gap-1.5 text-xs text-muted-foreground 2xl:flex"><Clock className="h-3.5 w-3.5" /><span className="font-mono">{format(props.lastUpdate, 'HH:mm:ss', { locale: ptBR })}</span></span>
-          <button type="button" onClick={props.onRefresh} className="noc-icon-button" aria-label="Atualizar dados" title="Atualizar dados"><RefreshCw className={cn('h-4 w-4', props.isRefreshing && 'animate-spin')} /></button>
-          <button type="button" onClick={() => setMobileOpen(value => !value)} className="noc-icon-button lg:hidden" aria-expanded={mobileOpen} aria-label="Abrir navegação">{mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}</button>
+          <button type="button" onClick={props.onRefresh} className="noc-icon-button" aria-label={props.isRefreshing ? 'Atualizando dados' : 'Atualizar dados'} aria-busy={props.isRefreshing} title="Atualizar dados"><RefreshCw className={cn('h-4 w-4', props.isRefreshing && 'animate-spin')} /></button>
+          <button type="button" onClick={() => setMobileOpen(value => !value)} className="noc-icon-button lg:hidden" aria-controls="noc-mobile-menu" aria-expanded={mobileOpen} aria-label={mobileOpen ? 'Fechar navegação' : 'Abrir navegação'}>{mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}</button>
         </div>
       </div>
 
       {mobileOpen && (
-        <div className="border-t border-border bg-surface px-4 py-3 lg:hidden">
+        <div id="noc-mobile-menu" className="border-t border-border bg-surface px-4 py-3 lg:hidden">
           <form onSubmit={submitSearch} className="relative mb-3">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input value={search} onChange={event => setSearch(event.target.value)} className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm outline-none focus:border-info" placeholder="Cliente, host, IP ou proxy" aria-label="Busca global" />
           </form>
           <nav className="grid grid-cols-2 gap-1" aria-label="Navegação móvel">
-            {navItems.map(item => <Link key={item.label} to={navTarget(item.to, currentMode)} className="rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-surface-elevated hover:text-foreground">{item.label}</Link>)}
+            {navItems.map(item => {
+              const active = item.to === '/' ? pathname === '/' : pathname.startsWith(item.to);
+              return <Link key={item.label} to={navTarget(item.to, currentMode)} aria-current={active ? 'page' : undefined} className="rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-surface-elevated hover:text-foreground">{item.label}</Link>;
+            })}
           </nav>
         </div>
       )}

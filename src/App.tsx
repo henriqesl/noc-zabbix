@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MotionConfig } from 'framer-motion';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { NocLayout } from '@/components/noc/NocLayout';
 import { LegacyEnvironmentRedirect, LegacyRedirect } from '@/components/routing/LegacyRedirect';
@@ -17,27 +18,29 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route element={<NocLayout />}>
-            <Route path="/" element={<OverviewPage />} />
-            <Route path="/ocorrencias" element={<AlertsPage />} />
-            <Route path="/ambientes" element={<EnvironmentsPage />} />
-            <Route path="/ambientes/:clientId" element={<ClientDetailPage />} />
-            <Route path="/inventario" element={<InventoryPage />} />
-            <Route path="/infraestrutura" element={<InfraPage />} />
-            <Route path="/alerts" element={<LegacyRedirect pathname="/ocorrencias" />} />
-            <Route path="/cameras" element={<LegacyRedirect pathname="/inventario" defaults={{ tipo: 'camera' }} />} />
-            <Route path="/cliente/:clientId" element={<LegacyEnvironmentRedirect />} />
-            <Route path="/infra" element={<LegacyRedirect pathname="/infraestrutura" />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <MotionConfig reducedMotion="user">
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route element={<NocLayout />}>
+              <Route path="/" element={<OverviewPage />} />
+              <Route path="/ocorrencias" element={<AlertsPage />} />
+              <Route path="/ambientes" element={<EnvironmentsPage />} />
+              <Route path="/ambientes/:clientId" element={<ClientDetailPage />} />
+              <Route path="/inventario" element={<InventoryPage />} />
+              <Route path="/infraestrutura" element={<InfraPage />} />
+              <Route path="/alerts" element={<LegacyRedirect pathname="/ocorrencias" />} />
+              <Route path="/cameras" element={<LegacyRedirect pathname="/inventario" defaults={{ tipo: 'camera' }} />} />
+              <Route path="/cliente/:clientId" element={<LegacyEnvironmentRedirect />} />
+              <Route path="/infra" element={<LegacyRedirect pathname="/infraestrutura" />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </MotionConfig>
   </QueryClientProvider>
 );
 

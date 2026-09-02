@@ -9,6 +9,9 @@ export function NocLayout() {
 
   return (
     <div className="min-h-screen w-full bg-background" data-mode={display.mode}>
+      <a href="#noc-main" className="fixed left-4 top-3 z-50 -translate-y-20 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-transform focus:translate-y-0">
+        Ir para o conteúdo principal
+      </a>
       <NocHeader
         lastUpdate={nocData.lastUpdate}
         isRefreshing={nocData.isRefreshing}
@@ -20,7 +23,7 @@ export function NocLayout() {
         mode={display.mode}
         onModeChange={display.setMode}
       />
-      <main className="noc-content min-w-0">
+      <main id="noc-main" tabIndex={-1} className="noc-content min-w-0">
         <div className="mx-auto w-full max-w-[220rem]">
           <Outlet context={nocData} />
         </div>
